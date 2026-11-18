@@ -51,6 +51,8 @@ void ReverbDSP::prepare(double newSampleRate)
         for (size_t i = 0; i < channel.allpasses.size(); ++i)
             channel.allpasses[i].prepare(allpassMs[ch][i] * (1.0f + allpassRoomScale), sampleRate);
     }
+    for (auto& channel : channels)
+        channel.airFilter.setCutoff(6500.0f, sampleRate);
     updateDelays();
     updateDamping();
     reset();
@@ -65,6 +67,7 @@ void ReverbDSP::reset()
         for (auto& comb : channel.combs) comb.reset();
         for (auto& ap : channel.allpasses) ap.reset();
         for (auto& filter : channel.dampingFilters) filter.reset();
+        channel.airFilter.reset();
     }
     modPhase = 0.0f;
 }
@@ -106,6 +109,19 @@ void ReverbDSP::setDamping(float amount)
 
 void ReverbDSP::setModulation(float amount) { modulation = juce::jlimit(0.0f, 1.0f, amount); }
 void ReverbDSP::setMix(float wet)           { mix = juce::jlimit(0.0f, 1.0f, wet); }
+void ReverbDSP::setDiffusion(float amount)  { diffusion = juce::jlimit(0.0f, 1.0f, amount); }
+void ReverbDSP::setWidth(float value)       { width = juce::jlimit(0.0f, 2.0f, value); }
+void ReverbDSP::setAir(float amount)        { air = juce::jlimit(0.0f, 1.0f, amount); }
+void ReverbDSP::setCharacter(int index)
+{
+    index = juce::jlimit(0, 2, index);
+    if (character != index)
+    {
+        character = index;
+        updateDamping();
+    }
+}
+void ReverbDSP::setMonoMode(bool mono)      { monoMode = mono; }
 
 void ReverbDSP::updateDelays()
 {
@@ -129,7 +145,10 @@ void ReverbDSP::updateDecay()
 
 void ReverbDSP::updateDamping()
 {
-    const float cutoff = juce::jmap(damping, 20000.0f, 800.0f);
+    float cutoff = juce::jmap(damping, 20000.0f, 800.0f);
+    if (character == 0)      cutoff *= 0.72f;   // Dark: extra absorption up top
+    else if (character == 2) cutoff = juce::jmin(20000.0f, cutoff * 1.45f); // Bright
+    cutoff = juce::jlimit(200.0f, 20000.0f, cutoff);
     for (auto& channel : channels)
         for (auto& filter : channel.dampingFilters)
             filter.setCutoff(cutoff, sampleRate);
@@ -142,33 +161,62 @@ void ReverbDSP::process(juce::AudioBuffer<float>& buffer)
     const auto tap = static_cast<int>(preDelaySamples);
     const float fraction = preDelaySamples - static_cast<float>(tap);
     const float phaseStep = juce::MathConstants<float>::twoPi * 0.3f / static_cast<float>(sampleRate);
+    const float wetGain = juce::jlimit(0.05f, 0.95f, 0.25f + 0.5f * diffusion);
     auto* const* audio = buffer.getArrayOfWritePointers();
     auto* const* delay = preDelayLine.getArrayOfWritePointers();
+    const bool stereo = numChannels == 2;
 
     for (int i = 0; i < buffer.getNumSamples(); ++i)
     {
+        const float dry0 = audio[0][i];
+        const float dry1 = stereo ? audio[1][i] : dry0;
+
+        // MONO mode feeds the average of both channels through a single chain;
+        // output is identical in both channels.
+        const float monoIn = stereo ? 0.5f * (dry0 + dry1) : dry0;
+        const int channelCount = monoMode && stereo ? 1 : numChannels;
+
         int pos = preDelayWritePos - tap;
         if (pos < 0) pos += length;
         const int older = pos > 0 ? pos - 1 : length - 1;
-        const float diffusion = 0.5f + modulation * 0.05f * std::sin(modPhase);
+        const float allpassFeedback = juce::jlimit(
+            0.05f, 0.95f, wetGain + modulation * 0.06f * std::sin(modPhase));
         modPhase += phaseStep;
         if (modPhase >= juce::MathConstants<float>::twoPi) modPhase -= juce::MathConstants<float>::twoPi;
 
-        for (int ch = 0; ch < numChannels; ++ch)
-        {
-            const float dry = audio[ch][i];
-            delay[ch][preDelayWritePos] = dry;
-            const float input = delay[ch][pos] + fraction * (delay[ch][older] - delay[ch][pos]);
+        delay[0][preDelayWritePos] = monoMode ? monoIn : dry0;
+        if (stereo) delay[1][preDelayWritePos] = monoMode ? monoIn : dry1;
 
+        float wet[2] = { 0.0f, 0.0f };
+        const float dry[2] = { dry0, dry1 };
+        for (int ch = 0; ch < channelCount; ++ch)
+        {
+            const float input = delay[ch][pos] + fraction * (delay[ch][older] - delay[ch][pos]);
             auto& channel = channels[static_cast<size_t>(ch)];
-            float wet = 0.0f;
+            float channelWet = 0.0f;
             for (size_t c = 0; c < channel.combs.size(); ++c)
-                wet += channel.combs[c].process(input, channel.dampingFilters[c]);
-            wet *= 0.25f;
+                channelWet += channel.combs[c].process(input, channel.dampingFilters[c]);
+            channelWet *= 0.25f;
             for (auto& ap : channel.allpasses)
-                wet = ap.process(wet, diffusion);
-            audio[ch][i] = dry * (1.0f - mix) + wet * mix;
+                channelWet = ap.process(channelWet, allpassFeedback);
+
+            // AIR: wet-path high-shelf, adding presence above ~6.5 kHz
+            channelWet += air * 1.7f * (channelWet - channel.airFilter.process(channelWet));
+            wet[ch] = channelWet;
         }
+        if (monoMode && stereo) wet[1] = wet[0];
+
+        if (stereo && !monoMode && std::abs(width - 1.0f) > 1.0e-3f)
+        {
+            const float mid = 0.5f * (wet[0] + wet[1]);
+            const float side = 0.5f * (wet[0] - wet[1]) * width;
+            wet[0] = mid + side;
+            wet[1] = mid - side;
+        }
+
+        for (int ch = 0; ch < numChannels; ++ch)
+            audio[ch][i] = dry[ch] * (1.0f - mix) + wet[ch] * mix;
+
         if (++preDelayWritePos == length) preDelayWritePos = 0;
     }
 }
