@@ -50,7 +50,31 @@ jobs:
         run: cmake -S . -B build -G Xcode '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
 
       - name: Build ${{ matrix.format }}
-        run: cmake --build build --config Release --target VoidChamberReverb_${{ matrix.format }} ReverbDSPTests EditorSnapshotTest --parallel 3
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build --config Release --target VoidChamberReverb_${{ matrix.format }} ReverbDSPTests EditorSnapshotTest --parallel 3 2>&1 | tee build-output.log
+
+      # Raw logs are not reachable from every environment; surface the interesting lines as annotations.
+      - name: Surface build errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f build-output.log ]; then
+            grep -a -E -i "error|fatal|undefined|FAILED" build-output.log | head -80 | while IFS= read -r line; do
+              line=${line//%/25}
+              line=${line//$'\r'/}
+              echo "::error::${line}"
+            done
+          fi
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-log-${{ runner.os }}
+          path: build-output.log
+          if-no-files-found: warn
 
       - name: Run DSP and editor-snapshot tests
         run: ctest --test-dir build -C Release --output-on-failure
