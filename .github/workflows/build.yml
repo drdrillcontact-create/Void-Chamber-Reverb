@@ -50,9 +50,9 @@ jobs:
         run: cmake -S . -B build -G Xcode '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
 
       - name: Build ${{ matrix.format }}
-        run: cmake --build build --config Release --target VoidChamberReverb_${{ matrix.format }} ReverbDSPTests --parallel 3
+        run: cmake --build build --config Release --target VoidChamberReverb_${{ matrix.format }} ReverbDSPTests EditorSnapshotTest --parallel 3
 
-      - name: Test the reverb impulse response
+      - name: Run DSP and editor-snapshot tests
         run: ctest --test-dir build -C Release --output-on-failure
 
       # Archive the entire bundle, including its top-level directory and Unix mode bits.
