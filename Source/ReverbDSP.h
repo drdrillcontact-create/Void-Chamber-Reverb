@@ -83,6 +83,11 @@ public:
     void setDamping(float amount);             // 0..1 (higher = more absorption)
     void setModulation(float amount);          // 0..1
     void setMix(float wet);                    // 0..1
+    void setDiffusion(float amount);           // 0..1 (all-pass density)
+    void setWidth(float width);                // 0..2 (1 = unity stereo width)
+    void setAir(float amount);                 // 0..1 (high-frequency presence)
+    void setCharacter(int index);              // 0 = Dark, 1 = Neutral, 2 = Bright
+    void setMonoMode(bool mono);               // collapse the wet path to mono
     void process(juce::AudioBuffer<float>& buffer);
 
 private:
@@ -96,6 +101,7 @@ private:
         std::array<CombFilter, 4> combs;
         std::array<OnePoleLowpass, 4> dampingFilters;
         std::array<AllpassFilter, 2> allpasses;
+        OnePoleLowpass airFilter;              // wet-path high-shelf splitter
     };
     std::array<Channel, 2> channels;
 
@@ -105,6 +111,11 @@ private:
     float damping = 0.5f;
     float modulation = 0.0f;
     float modPhase = 0.0f;
+    float diffusion = 0.68f;
+    float width = 1.2f;
+    float air = 0.35f;
+    int character = 0;
+    bool monoMode = false;
 
     void updateDelays();
     void updateDecay();

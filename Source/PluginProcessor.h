@@ -51,6 +51,13 @@ public:
     float getInputLevel() const noexcept { return inputLevel.load(std::memory_order_relaxed); }
     float getOutputLevel() const noexcept { return outputLevel.load(std::memory_order_relaxed); }
 
+    // Factory presets (also exposed as host programs)
+    static constexpr int numPresets = 6;
+    int getNumPresets() const noexcept { return numPresets; }
+    int getCurrentPresetIndex() const noexcept { return currentPresetIndex.load(std::memory_order_relaxed); }
+    juce::String getCurrentPresetName() const;
+    void loadPreset(int index);
+
     // Parameter IDs
     static constexpr char sizeID[]        = "size";
     static constexpr char preDelayID[]    = "preDelay";
@@ -59,11 +66,18 @@ public:
     static constexpr char modulationID[]  = "modulation";
     static constexpr char mixID[]         = "mix";
     static constexpr char spaceTypeID[]   = "spaceType";
+    static constexpr char diffusionID[]   = "diffusion";
+    static constexpr char widthID[]       = "width";
+    static constexpr char airID[]         = "air";
+    static constexpr char characterID[]   = "character";
+    static constexpr char channelModeID[] = "channelMode";
+
 
 private:
     juce::AudioProcessorValueTreeState parameters;
     ReverbDSP reverb;
     std::atomic<float> inputLevel { 0.0f }, outputLevel { 0.0f };
+    std::atomic<int> currentPresetIndex { 0 };
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void updateReverbParameters();

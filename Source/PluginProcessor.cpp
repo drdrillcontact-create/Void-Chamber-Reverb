@@ -1,5 +1,9 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <array>
+#include <cmath>
+#include <iterator>
+#include <cstddef>
 
 //==============================================================================
 VoidChamberReverbAudioProcessor::VoidChamberReverbAudioProcessor()
@@ -39,19 +43,100 @@ VoidChamberReverbAudioProcessor::createParameterLayout()
         juce::ParameterID { modulationID, 1 }, "Modulation", 0.0f, 1.0f, 0.33f));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID { mixID, 1 }, "Mix", 0.0f, 1.0f, 0.6f));
+        juce::ParameterID { mixID, 1 }, "Mix", 0.0f, 1.0f, 0.75f));
 
     juce::StringArray spaceTypes{ "Void", "Hall", "Plate", "Cavern", "Ambient" };
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID { spaceTypeID, 1 }, "Space Type", spaceTypes, 0));
 
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID { diffusionID, 1 }, "Diffusion",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 68.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID { widthID, 1 }, "Width",
+        juce::NormalisableRange<float>(0.0f, 200.0f, 1.0f), 120.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID { airID, 1 }, "Air",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 0.1f), 35.0f,
+        juce::AudioParameterFloatAttributes().withLabel("%")));
+
+    juce::StringArray characters{ "Dark", "Neutral", "Bright" };
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID { characterID, 1 }, "Character", characters, 0));
+
+    juce::StringArray channelModes{ "Stereo", "Mono" };
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID { channelModeID, 1 }, "Channel Mode", channelModes, 0));
+
     return { params.begin(), params.end() };
 }
 
 //==============================================================================
+namespace
+{
+    struct FactoryPreset
+    {
+        const char* name;
+        float size, preDelay, decay, damping, modulation, mix;
+        float diffusion, width, air;
+        int character, spaceType, channelMode;
+    };
+
+    const FactoryPreset factoryPresets[VoidChamberReverbAudioProcessor::numPresets] =
+    {
+        // name            size  pre  decay damping mod   mix   diff  width air  char space  mode
+        { "Astral Hall",   0.72f, 28.0f, 4.8f, 0.46f, 0.33f, 0.75f, 68.0f, 120.0f, 35.0f, 0, 0, 0 },
+        { "Void Infinity", 0.90f, 32.0f, 12.0f, 0.22f, 0.48f, 0.80f, 82.0f, 135.0f, 50.0f, 0, 0, 0 },
+        { "Plate Whisper", 0.55f, 18.0f, 1.6f, 0.30f, 0.20f, 0.45f, 75.0f, 110.0f, 45.0f, 1, 2, 0 },
+        { "Cavern Cathedral", 1.00f, 45.0f, 7.2f, 0.55f, 0.40f, 0.70f, 85.0f, 125.0f, 30.0f, 0, 3, 0 },
+        { "Ambient Drift", 0.65f, 60.0f, 8.5f, 0.35f, 0.60f, 0.65f, 60.0f, 140.0f, 55.0f, 2, 4, 0 },
+        { "Neon Plate",    0.70f, 10.0f, 3.4f, 0.18f, 0.35f, 0.55f, 70.0f, 115.0f, 60.0f, 2, 2, 0 },
+    };
+}
+
 const juce::String VoidChamberReverbAudioProcessor::getName() const
 {
     return JucePlugin_Name;
+}
+
+juce::String VoidChamberReverbAudioProcessor::getCurrentPresetName() const
+{
+    const auto index = currentPresetIndex.load(std::memory_order_relaxed);
+    if (juce::isPositiveAndBelow(index, (int) std::size(factoryPresets)))
+        return juce::String(factoryPresets[index].name);
+    return {};
+}
+
+void VoidChamberReverbAudioProcessor::loadPreset(int index)
+{
+    const int n = (int) std::size(factoryPresets);
+    index = ((index % n) + n) % n;
+    const auto& preset = factoryPresets[index];
+
+    const auto set = [this](const char* paramID, float plainValue)
+    {
+        if (auto* parameter = parameters.getParameter(paramID))
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(plainValue));
+    };
+
+    set(sizeID, preset.size);
+    set(preDelayID, preset.preDelay);
+    set(decayID, preset.decay);
+    set(dampingID, preset.damping);
+    set(modulationID, preset.modulation);
+    set(mixID, preset.mix);
+    set(diffusionID, preset.diffusion);
+    set(widthID, preset.width);
+    set(airID, preset.air);
+    set(characterID, (float) preset.character);
+    set(spaceTypeID, (float) preset.spaceType);
+    set(channelModeID, (float) preset.channelMode);
+
+    currentPresetIndex.store(index, std::memory_order_relaxed);
 }
 
 bool VoidChamberReverbAudioProcessor::acceptsMidi() const
@@ -77,22 +162,23 @@ double VoidChamberReverbAudioProcessor::getTailLengthSeconds() const
 
 int VoidChamberReverbAudioProcessor::getNumPrograms()
 {
-    return 1;
+    return numPresets;
 }
 
 int VoidChamberReverbAudioProcessor::getCurrentProgram()
 {
-    return 0;
+    return currentPresetIndex.load(std::memory_order_relaxed);
 }
 
 void VoidChamberReverbAudioProcessor::setCurrentProgram(int index)
 {
-    juce::ignoreUnused(index);
+    loadPreset(index);
 }
 
 const juce::String VoidChamberReverbAudioProcessor::getProgramName(int index)
 {
-    juce::ignoreUnused(index);
+    if (juce::isPositiveAndBelow(index, (int) std::size(factoryPresets)))
+        return juce::String(factoryPresets[index].name);
     return {};
 }
 
@@ -117,6 +203,11 @@ void VoidChamberReverbAudioProcessor::updateReverbParameters()
     reverb.setDamping(*parameters.getRawParameterValue(dampingID));
     reverb.setModulation(*parameters.getRawParameterValue(modulationID));
     reverb.setMix(*parameters.getRawParameterValue(mixID));
+    reverb.setDiffusion(*parameters.getRawParameterValue(diffusionID) * 0.01f);
+    reverb.setWidth(*parameters.getRawParameterValue(widthID) * 0.01f);
+    reverb.setAir(*parameters.getRawParameterValue(airID) * 0.01f);
+    reverb.setCharacter((int) std::lround(*parameters.getRawParameterValue(characterID)));
+    reverb.setMonoMode(*parameters.getRawParameterValue(channelModeID) >= 0.5f);
 }
 
 void VoidChamberReverbAudioProcessor::releaseResources()
@@ -175,6 +266,7 @@ bool VoidChamberReverbAudioProcessor::hasEditor() const
 void VoidChamberReverbAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     auto state = parameters.copyState();
+    state.setProperty("presetIndex", currentPresetIndex.load(std::memory_order_relaxed), nullptr);
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
@@ -184,7 +276,11 @@ void VoidChamberReverbAudioProcessor::setStateInformation(const void* data, int 
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState.get() != nullptr)
         if (xmlState->hasTagName(parameters.state.getType()))
-            parameters.replaceState(juce::ValueTree::fromXml(*xmlState));
+        {
+            auto tree = juce::ValueTree::fromXml(*xmlState);
+            currentPresetIndex.store(tree.getProperty("presetIndex", 0), std::memory_order_relaxed);
+            parameters.replaceState(tree);
+        }
 }
 
 //==============================================================================

@@ -1,10 +1,28 @@
 # Void Chamber Reverb
 
 A JUCE audio effect with a Schroeder reverb (parallel combs and series allpasses),
-independent stereo tails, and a mono-in/mono-out mode. The editor has controls
-for size, pre-delay, decay, damping, modulation and wet/dry mix, a Space Type
-selector, and input/output meters. The UI is drawn with JUCE, without external
-graphics assets.
+independent stereo tails, a mono/stereo channel mode and a fully custom
+neon-space UI (background and Space Type orb artwork generated for this project
+and embedded in the plugin via `juce_add_binary_data`).
+
+![Void Chamber Reverb UI](docs/void-chamber-reverb-ui.jpg)
+
+## Features
+
+- Schroeder network: 4 parallel combs (per channel) with damping filters, series
+  all-pass diffusion, mono-safe pre-delay with fractional tap interpolation.
+- Controls: **Size**, **Pre Delay**, **Decay Time** (the big arc), **Damping**,
+  **Modulation**, **Output Mix**, **Diffusion**, **Width** (up to 200 %),
+  **Air** (wet-path high shelf), and **Character** (Dark / Neutral / Bright).
+- **Space Type**: Void / Hall / Plate / Cavern / Ambient (independent voicings).
+- **Mono / Stereo** channel mode that really sums the wet path to mono.
+- **Presets**: Astral Hall, Void Infinity, Plate Whisper, Cavern Cathedral,
+  Ambient Drift, Neon Plate — switchable from the UI (`<` `>`) or from the host's
+  program list (they are exposed as host programs).
+- An analytical **Frequency Decay** display that follows the actual parameter
+  state, a large draggable **Decay Time** arc, real-time input/output meters
+  with dB ticks, and a state that round-trips through the host (it also
+  remembers the selected preset).
 
 ## Build locally
 
@@ -39,7 +57,8 @@ The bundles are `build/VoidChamberReverb_artefacts/Release/VST3/Void Chamber Rev
 and `build/VoidChamberReverb_artefacts/Release/AU/Void Chamber Reverb.component`,
 respectively. Building does not install them in a system plugin directory.
 
-To run the DSP regression test on either platform:
+To run the regression tests on either platform (DSP impulse/tail/mono checks
+and a headless render of the editor):
 
 ```sh
 cmake --build build --config Release --target ReverbDSPTests
