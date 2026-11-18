@@ -6,6 +6,11 @@
 int main(int argc, char* argv[])
 {
     juce::ignoreUnused(argc);
+
+    // Required before touching any JUCE GUI code on every platform —
+    // without it the graphics subsystem is not initialised.
+    juce::ScopedJuceInitialiser_GUI juceInitialiser;
+
     VoidChamberReverbAudioProcessor processor;
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
