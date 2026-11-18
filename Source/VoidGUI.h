@@ -27,12 +27,12 @@ namespace VoidGUI
     // Fonts -----------------------------------------------------------------
     inline juce::Typeface::Ptr raleway (int weight)
     {
-        static juce::Typeface::Ptr f200 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway_200_ttf, (size_t) BinaryData::Raleway_200_ttfSize);
-        static juce::Typeface::Ptr f300 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway_300_ttf, (size_t) BinaryData::Raleway_300_ttfSize);
-        static juce::Typeface::Ptr f400 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway_400_ttf, (size_t) BinaryData::Raleway_400_ttfSize);
-        static juce::Typeface::Ptr f500 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway_500_ttf, (size_t) BinaryData::Raleway_500_ttfSize);
-        static juce::Typeface::Ptr f600 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway_600_ttf, (size_t) BinaryData::Raleway_600_ttfSize);
-        static juce::Typeface::Ptr f700 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway_700_ttf, (size_t) BinaryData::Raleway_700_ttfSize);
+        static juce::Typeface::Ptr f200 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway200_ttf, (size_t) BinaryData::Raleway200_ttfSize);
+        static juce::Typeface::Ptr f300 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway300_ttf, (size_t) BinaryData::Raleway300_ttfSize);
+        static juce::Typeface::Ptr f400 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway400_ttf, (size_t) BinaryData::Raleway400_ttfSize);
+        static juce::Typeface::Ptr f500 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway500_ttf, (size_t) BinaryData::Raleway500_ttfSize);
+        static juce::Typeface::Ptr f600 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway600_ttf, (size_t) BinaryData::Raleway600_ttfSize);
+        static juce::Typeface::Ptr f700 = juce::Typeface::createSystemTypefaceFor(BinaryData::Raleway700_ttf, (size_t) BinaryData::Raleway700_ttfSize);
         switch (weight)
         {
             case 200: return f200;

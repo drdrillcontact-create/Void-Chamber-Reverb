@@ -797,11 +797,11 @@ void PresetBrowser::paint (juce::Graphics& g)
         int dataSize = 0;
         switch (tab.categoryIndex)
         {
-            case 0: data = BinaryData::space_void_jpg;    dataSize = BinaryData::space_void_jpgSize;    break;
-            case 1: data = BinaryData::space_hall_jpg;    dataSize = BinaryData::space_hall_jpgSize;    break;
-            case 2: data = BinaryData::space_plate_jpg;   dataSize = BinaryData::space_plate_jpgSize;   break;
-            case 3: data = BinaryData::space_cavern_jpg;  dataSize = BinaryData::space_cavern_jpgSize;  break;
-            case 4: data = BinaryData::space_ambient_jpg; dataSize = BinaryData::space_ambient_jpgSize; break;
+            case 0: data = BinaryData::spacevoid_jpg;    dataSize = BinaryData::spacevoid_jpgSize;    break;
+            case 1: data = BinaryData::spacehall_jpg;    dataSize = BinaryData::spacehall_jpgSize;    break;
+            case 2: data = BinaryData::spaceplate_jpg;   dataSize = BinaryData::spaceplate_jpgSize;   break;
+            case 3: data = BinaryData::spacecavern_jpg;  dataSize = BinaryData::spacecavern_jpgSize;  break;
+            case 4: data = BinaryData::spaceambient_jpg; dataSize = BinaryData::spaceambient_jpgSize; break;
             default: break;
         }
         if (data != nullptr)
@@ -977,11 +977,11 @@ VoidChamberReverbAudioProcessorEditor::VoidChamberReverbAudioProcessorEditor (Vo
 {
     setOpaque (true);
 
-    background = juce::ImageCache::getFromMemory (BinaryData::void_background_jpg, BinaryData::void_background_jpgSize);
-    static const char* orbFiles[5] = { BinaryData::space_void_jpg, BinaryData::space_hall_jpg, BinaryData::space_plate_jpg,
-                                       BinaryData::space_cavern_jpg, BinaryData::space_ambient_jpg };
-    static const int orbSizes[5] = { BinaryData::space_void_jpgSize, BinaryData::space_hall_jpgSize, BinaryData::space_plate_jpgSize,
-                                     BinaryData::space_cavern_jpgSize, BinaryData::space_ambient_jpgSize };
+    background = juce::ImageCache::getFromMemory (BinaryData::voidbackground_jpg, BinaryData::voidbackground_jpgSize);
+    static const char* orbFiles[5] = { BinaryData::spacevoid_jpg, BinaryData::spacehall_jpg, BinaryData::spaceplate_jpg,
+                                       BinaryData::spacecavern_jpg, BinaryData::spaceambient_jpg };
+    static const int orbSizes[5] = { BinaryData::spacevoid_jpgSize, BinaryData::spacehall_jpgSize, BinaryData::spaceplate_jpgSize,
+                                     BinaryData::spacecavern_jpgSize, BinaryData::spaceambient_jpgSize };
     const char* orbNames[5] = { "Void", "Hall", "Plate", "Cavern", "Ambient" };
     for (int i = 0; i < 5; ++i)
     {
