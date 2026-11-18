@@ -1,28 +1,21 @@
 #pragma once
 
-#include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include <array>
 
-//==============================================================================
 class VoidChamberReverbAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                              private juce::AudioProcessorValueTreeState::Listener
+                                              private juce::Timer
 {
 public:
-    VoidChamberReverbAudioProcessorEditor(VoidChamberReverbAudioProcessor&);
+    explicit VoidChamberReverbAudioProcessorEditor(VoidChamberReverbAudioProcessor&);
     ~VoidChamberReverbAudioProcessorEditor() override;
 
-    //==============================================================================
     void paint(juce::Graphics&) override;
     void resized() override;
 
-    // ValueTree listener — keeps buttons in sync with the Space Type parameter
-    void parameterValueChanged(int parameterIndex, float newValue) override;
-
 private:
-    //==============================================================================
-    VoidChamberReverbAudioProcessor& processorRef;
+    void timerCallback() override;
 
-    // Custom look-and-feel for dark neon style
     class NeonLookAndFeel : public juce::LookAndFeel_V4
     {
     public:
@@ -31,38 +24,16 @@ private:
                               juce::Slider&) override;
     };
 
+    VoidChamberReverbAudioProcessor& processorRef;
     NeonLookAndFeel neonLaf;
+    std::array<juce::Slider, 6> knobs;
+    std::array<juce::Label, 6> labels;
+    std::array<juce::ToggleButton, 5> spaceButtons;
 
-    // Controls
-    std::unique_ptr<juce::Slider> sizeSlider;
-    std::unique_ptr<juce::Slider> preDelaySlider;
-    std::unique_ptr<juce::Slider> decaySlider;
-    std::unique_ptr<juce::Slider> dampingSlider;
-    std::unique_ptr<juce::Slider> modulationSlider;
-    std::unique_ptr<juce::Slider> mixSlider;
-
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sizeAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> preDelayAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> decayAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> dampingAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> modulationAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttach;
-
-    // Space type buttons (exclusive toggle group)
-    std::unique_ptr<juce::ToggleButton> btnVoid;
-    std::unique_ptr<juce::ToggleButton> btnHall;
-    std::unique_ptr<juce::ToggleButton> btnPlate;
-    std::unique_ptr<juce::ToggleButton> btnCavern;
-    std::unique_ptr<juce::ToggleButton> btnAmbient;
-
-    std::unique_ptr<juce::ToggleButton> spaceButtons[5];
-
-    // Meters
-    std::unique_ptr<juce::Component> inputMeter;
-    std::unique_ptr<juce::Component> outputMeter;
-
-    // Label helper — creates and adds a label, does not store it
-    void addLabel(const juce::String& text, int x, int y, int w, int h);
+    // Attachments must be destroyed before the controls they reference.
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    std::array<std::unique_ptr<SliderAttachment>, 6> knobAttachments;
+    juce::ParameterAttachment spaceAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VoidChamberReverbAudioProcessorEditor)
 };
