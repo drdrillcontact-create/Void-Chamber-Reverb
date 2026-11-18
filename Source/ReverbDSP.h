@@ -2,122 +2,164 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
+#include <cmath>
 
-// Simple one-pole lowpass used inside comb-filter feedback loops (damping).
-class OnePoleLowpass
+//==============================================================================
+// Void Chamber Reverb DSP core — written from scratch for this plugin.
+//
+// Signal chain per sample:
+//
+//   input ─► DC blocker ─► pre-delay (fractional) ─► 4 series input allpasses
+//        ─► early reflections (6 feed-forward taps per side)
+//        ─► 8-line Feedback Delay Network (normalized Hadamard mixing,
+//           per-line damping lowpass, per-line subsonic highpass,
+//           per-line slow LFO modulation with interpolated reads)
+//        ─► output high-shelf ("Air") ─► mid/side width matrix
+//        ─► equal-power dry/wet crossfade
+//
+// Every audible parameter is smoothed at block rate; delay feedback gains are
+// recomputed from an exponential RT60 model: g = 10^(-3 * delay / RT60).
+//==============================================================================
+
+class SVF // one-pole low/high pass pair (stable inside the feedback loop)
 {
 public:
-    void setCutoff(float cutoffHz, double sampleRate)
-    {
-        coeff = juce::jlimit(0.001f, 0.999f, cutoffHz / static_cast<float>(sampleRate));
-    }
-
-    float process(float sample) { return history += coeff * (sample - history); }
-    void reset() { history = 0.0f; }
+    void setLowpass (float cutoffHz, double sampleRate);
+    void setHighpass (float cutoffHz, double sampleRate);
+    void reset() { z1 = 0.0f; }
+    float processLowpass (float sample);
+    float processHighpass (float sample);
 
 private:
-    float coeff = 0.5f;
-    float history = 0.0f;
+    float a = 0.0f;
+    float z1 = 0.0f;
 };
 
-// Allocate for the largest room in prepare(); changing the tap must not clear
-// the tail or resize a buffer on the audio thread.
-class FilterDelay
+// Ring buffer with interpolated read; writer wrap is branch-light.
+class FractionalDelay
 {
 public:
-    void prepare(float maxDelayMs, double sampleRate);
-    void setDelayMs(float delayMs, double sampleRate);
+    void prepare (float maxDelayMs, double sampleRate);
     void reset();
-
-protected:
-    int delaySamples = 1;
-    float read() const;
-    void push(float sample);
+    void write (float sample);
+    float readInterpolated (float delaySamples) const;
 
 private:
     juce::AudioBuffer<float> buffer;
     int writePos = 0;
+public:
+    int getSize() const { return buffer.getNumSamples(); }
 };
 
-class CombFilter : public FilterDelay
+class FeedbackAllpass
 {
 public:
-    void setDecay(float seconds, double sampleRate)
-    {
-        // A gain of -60 dB after `seconds` seconds of round trips.
-        feedback = std::pow(0.001f, static_cast<float>(delaySamples / sampleRate) / seconds);
-    }
-
-    float process(float input, OnePoleLowpass& lpf)
-    {
-        const float out = read();
-        push(input + lpf.process(out * feedback));
-        return out;
-    }
+    void prepare (float maxDelayMs, double sampleRate);
+    void reset();
+    void setDelayMs (float ms, double sampleRate);
+    float process (float input, float feedback);
 
 private:
-    float feedback = 0.0f;
+    FractionalDelay delay;
+    float delaySamples = 100.0f;
 };
 
-class AllpassFilter : public FilterDelay
+class HighShelf
 {
 public:
-    float process(float input, float feedback)
-    {
-        const float out = read();
-        const float next = input + out * feedback;
-        push(next);
-        return out - next * feedback;
-    }
+    void setGainDb (float dB, float cutoffHz, double sampleRate);
+    void reset() { x1 = x2 = y1 = y2 = 0.0f; }
+    float process (float x);
+
+private:
+    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
+    float x1 = 0.0f, x2 = 0.0f, y1 = 0.0f, y2 = 0.0f;
 };
 
+//==============================================================================
 class ReverbDSP
 {
 public:
-    void prepare(double newSampleRate);
+    static constexpr int numLines   = 8;   // FDN order
+    static constexpr int numInputAP = 4;   // diffusion chain
+    static constexpr int numERTaps  = 6;   // early reflection taps per channel
+
+    void prepare (double newSampleRate);
     void reset();
 
-    void setRoomSize(float size);              // 0..1
-    void setPreDelayMs(float ms);              // 0..200 ms
-    void setDecaySeconds(float seconds);       // RT60
-    void setDamping(float amount);             // 0..1 (higher = more absorption)
-    void setModulation(float amount);          // 0..1
-    void setMix(float wet);                    // 0..1
-    void setDiffusion(float amount);           // 0..1 (all-pass density)
-    void setWidth(float width);                // 0..2 (1 = unity stereo width)
-    void setAir(float amount);                 // 0..1 (high-frequency presence)
-    void setCharacter(int index);              // 0 = Dark, 1 = Neutral, 2 = Bright
-    void setMonoMode(bool mono);               // collapse the wet path to mono
-    void process(juce::AudioBuffer<float>& buffer);
+    void setRoomSize (float size);        // 0..1 — scales all delay times
+    void setPreDelayMs (float ms);        // 0..250 ms
+    void setDecaySeconds (float seconds); // RT60, 0.1..20 s
+    void setDamping (float amount);       // 0..1 — high-frequency absorption
+    void setModulation (float amount);    // 0..1 — chorus depth of the FDN
+    void setMix (float wet);              // 0..1
+    void setDiffusion (float amount);     // 0..1 — allpass feedback amount
+    void setWidth (float width);          // 0..2 (1 = unity)
+    void setAir (float amount);           // 0..1 — high shelf on the wet path
+    void setCharacter (int index);        // 0 Dark, 1 Neutral, 2 Bright
+    void setMonoMode (bool mono);         // collapse wet to mono
+    void setSpaceType (int index);        // 0 Void, 1 Hall, 2 Plate, 3 Cavern, 4 Ambient
+
+    void process (juce::AudioBuffer<float>& buffer);
+
+    // Estimated modal density is useful for tests only.
+    static float referenceLineMs (int index) noexcept;
 
 private:
-    double sampleRate = 44100.0;
-    juce::AudioBuffer<float> preDelayLine;
-    int preDelayWritePos = 0;
-    float preDelaySamples = 0.0f;
-
-    struct Channel
+    struct SpaceProfile
     {
-        std::array<CombFilter, 4> combs;
-        std::array<OnePoleLowpass, 4> dampingFilters;
-        std::array<AllpassFilter, 2> allpasses;
-        OnePoleLowpass airFilter;              // wet-path high-shelf splitter
+        float delayScale;   // multiplies the base delay set
+        float lpScale;      // scales the damping lowpass cutoff
+        float hpHz;         // subsonic corner
+        float modRate;      // base LFO rate in Hz
+        float modDepth;     // base LFO depth in samples
+        float erGain;       // early reflection level 0..1
+        float erCutoffHz;   // early reflection lowpass
     };
-    std::array<Channel, 2> channels;
 
-    float mix = 0.5f;
+    static constexpr int numSpaceTypes = 5;
+    static const SpaceProfile profiles[numSpaceTypes];
+
+    double sampleRate = 44100.0;
+
+    // Pre-delay (independent L/R lines)
+    FractionalDelay preDelayL, preDelayR;
+    juce::SmoothedValue<float> preDelaySamples;
+
+    // Input diffusion
+    std::array<FeedbackAllpass, numInputAP> diffusionL, diffusionR;
+
+    // Early reflections (per channel)
+    FractionalDelay erDelayL, erDelayR;
+
+    // FDN
+    std::array<FractionalDelay, numLines> lines;
+    std::array<SVF, numLines> dampingLP;
+    std::array<SVF, numLines> subsonicHP;
+    std::array<float, numLines> lineDelaySamples {};
+    std::array<float, numLines> lineFeedback {};
+    std::array<float, numLines> lfoPhase {};
+    std::array<float, numLines> lfoRateMul {};
+
+    HighShelf airShelfL, airShelfR;
+
+    // Parameters (raw values, applied at block rate through smoothers)
+    juce::SmoothedValue<float> mixS        { 0.5f };
+    juce::SmoothedValue<float> widthS      { 1.0f };
+    juce::SmoothedValue<float> airS        { 0.35f };
+    juce::SmoothedValue<float> dampingS    { 0.5f };
+    juce::SmoothedValue<float> modulationS { 0.0f };
+    juce::SmoothedValue<float> diffusionS  { 0.7f };
+
     float roomSize = 0.5f;
     float decaySeconds = 2.0f;
-    float damping = 0.5f;
-    float modulation = 0.0f;
-    float modPhase = 0.0f;
-    float diffusion = 0.68f;
-    float width = 1.2f;
-    float air = 0.35f;
-    int character = 0;
-    bool monoMode = false;
+    int   character = 1;
+    int   spaceType = 0;
+    bool  monoMode = false;
 
-    void updateDelays();
-    void updateDecay();
-    void updateDamping();
+    void configureSpace();       // size/space/character dependent recalculation
+    void updateDamping();        // damping lowpass cutoff from params
+    void updateLineFeedback();   // RT60 model
+    float characterTiltDb() const noexcept;
+    float lineDelayMsBase (int index) const noexcept;
 };
