@@ -1,0 +1,68 @@
+name: Build plugins
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64 VST3
+            os: windows-2022
+            format: VST3
+            bundle: Void Chamber Reverb.vst3
+            artifact: VoidChamberReverb-Windows-x64-VST3
+          - name: macOS universal AU
+            os: macos-15
+            format: AU
+            bundle: Void Chamber Reverb.component
+            artifact: VoidChamberReverb-macOS-universal-AU
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out JUCE 8.0.17-security
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: juce-framework/JUCE
+          ref: dabd5ad13cd869cba41046947fffc8e5ce5cd662
+          path: deps/JUCE
+          persist-credentials: false
+
+      - name: Configure Windows x64
+        if: runner.os == 'Windows'
+        env:
+          JUCE_ROOT: ${{ github.workspace }}/deps/JUCE
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Configure macOS (Apple Silicon and Intel)
+        if: runner.os == 'macOS'
+        env:
+          JUCE_ROOT: ${{ github.workspace }}/deps/JUCE
+        run: cmake -S . -B build -G Xcode '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+
+      - name: Build ${{ matrix.format }}
+        run: cmake --build build --config Release --target VoidChamberReverb_${{ matrix.format }} ReverbDSPTests --parallel 3
+
+      - name: Test the reverb impulse response
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      # Archive the entire bundle, including its top-level directory and Unix mode bits.
+      - name: Package plugin
+        working-directory: build/VoidChamberReverb_artefacts/Release/${{ matrix.format }}
+        run: cmake -E tar cf "${{ matrix.artifact }}.zip" --format=zip -- "${{ matrix.bundle }}"
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          archive: false
+          path: build/VoidChamberReverb_artefacts/Release/${{ matrix.format }}/${{ matrix.artifact }}.zip
+          if-no-files-found: error

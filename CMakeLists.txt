@@ -1,71 +1,45 @@
-cmake_minimum_required(VERSION 3.16)
-project(VOID_CHAMBER_REVERB LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.22)
+project(VoidChamberReverb VERSION 1.0.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# ------------------------------------------------------------
-# JUCE plugin metadata
-# ------------------------------------------------------------
-set(JUCE_PLUGIN_NAME "Void Chamber Reverb")
-set(JUCE_PLUGIN_DESCRIPTION "Spacey Stereo Algorithmic Reverb")
-set(JUCE_PLUGIN_MANUFACTURER "D.A Production")
-set(JUCE_PLUGIN_VERSION "1.0.0")
-set(JUCE_PLUGIN_CODE "VCRB")
-set(JUCE_PLUGIN_CODE2 "VCRB")
-set(JUCE_PLUGIN_CHANNEL_CONFIGS "1:1 2:2")
-set(JUCE_PLUGIN_METADATA_URL "https://github.com/your-org/void-chamber-reverb")
-
-# Enable both VST3 and AudioUnit (per-platform targets handle the rest)
-set(JUCE_PLUGIN_FORMATS "VST3;AudioUnit" CACHE STRING "Plugin formats to build")
-
-# ------------------------------------------------------------
-# JUCE setup
-# ------------------------------------------------------------
-# The user must point JUCE_ROOT to a local JUCE checkout or install.
-# Example: -DJUCE_ROOT=/path/to/JUCE
-if(NOT DEFINED JUCE_ROOT)
-    set(JUCE_ROOT "$ENV{JUCE_ROOT}" CACHE PATH "Path to JUCE framework")
+# Use the supplied source tree, not an unrelated system package or a network fetch.
+set(JUCE_ROOT "$ENV{JUCE_ROOT}" CACHE PATH "Path to the JUCE source tree")
+if(NOT JUCE_ROOT OR NOT EXISTS "${JUCE_ROOT}/CMakeLists.txt"
+                 OR NOT EXISTS "${JUCE_ROOT}/modules/juce_core/juce_core.h")
+    message(FATAL_ERROR "Set JUCE_ROOT (environment or -DJUCE_ROOT=/path/to/JUCE) "
+                        "to a JUCE source tree containing CMakeLists.txt and modules/.")
 endif()
+add_subdirectory("${JUCE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE" EXCLUDE_FROM_ALL)
 
-if(NOT JUCE_ROOT)
-    message(FATAL_ERROR "JUCE_ROOT is not defined. Set -DJUCE_ROOT=/path/to/JUCE or export JUCE_ROOT env var.")
-endif()
+juce_add_plugin(VoidChamberReverb
+    PRODUCT_NAME "Void Chamber Reverb"
+    DESCRIPTION "Spacey Stereo Algorithmic Reverb"
+    COMPANY_NAME "D.A Production"
+    BUNDLE_ID com.daproduction.voidchamberreverb
+    PLUGIN_MANUFACTURER_CODE Dapr
+    PLUGIN_CODE Vcrb
+    FORMATS VST3 AU
+    VST3_CATEGORIES Fx Reverb
+    AU_MAIN_TYPE kAudioUnitType_Effect
+    COPY_PLUGIN_AFTER_BUILD FALSE)
 
-set(JUCE_BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
-set(JUCE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(JUCE_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+target_sources(VoidChamberReverb PRIVATE
+    Source/PluginProcessor.cpp Source/PluginProcessor.h
+    Source/PluginEditor.cpp    Source/PluginEditor.h
+    Source/ReverbDSP.cpp       Source/ReverbDSP.h)
 
-list(APPEND CMAKE_MODULE_PATH "${JUCE_ROOT}/extras/CMake/modules")
-find_package(JUCE REQUIRED CONFIG)
+target_compile_features(VoidChamberReverb PRIVATE cxx_std_17)
+target_compile_definitions(VoidChamberReverb PUBLIC
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+target_link_libraries(VoidChamberReverb
+    PRIVATE juce::juce_audio_processors
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
-# ------------------------------------------------------------
-# Target
-# ------------------------------------------------------------
-juce_add_plugin(MyPlugin
-    SOURCES
-        Source/PluginProcessor.cpp
-        Source/PluginProcessor.h
-        Source/PluginEditor.cpp
-        Source/PluginEditor.h
-        Source/ReverbDSP.cpp
-        Source/ReverbDSP.h
-)
-
-target_include_directories(MyPlugin PRIVATE
-    Source
-)
-
-# Per-platform output tweaks
-if(WINDOWS)
-    # VST3 is the primary target on Windows
-    set_target_properties(MyPlugin PROPERTIES
-        CXX_VISIBILITY_PRESET hidden
-        VISIBILITY_INLINES_HIDDEN ON
-    )
-elseif(APPLE)
-    # AudioUnit is the primary target on macOS
-    set_target_properties(MyPlugin PROPERTIES
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.daproduction.voidchamberreverb"
-    )
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(ReverbDSPTests Tests/ReverbDSPTests.cpp Source/ReverbDSP.cpp)
+    target_include_directories(ReverbDSPTests PRIVATE Source)
+    target_compile_features(ReverbDSPTests PRIVATE cxx_std_17)
+    target_compile_definitions(ReverbDSPTests PRIVATE JUCE_USE_CURL=0)
+    target_link_libraries(ReverbDSPTests PRIVATE juce::juce_audio_basics)
+    add_test(NAME ReverbImpulseResponse COMMAND ReverbDSPTests)
 endif()

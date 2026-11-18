@@ -1,6 +1,7 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <atomic>
 #include "ReverbDSP.h"
 
 //==============================================================================
@@ -17,6 +18,7 @@ public:
 
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
 
+    using juce::AudioProcessor::processBlock;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     //==============================================================================
@@ -43,19 +45,11 @@ public:
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     //==============================================================================
-    juce::AudioProcessorValueTreeState& getParameters() { return parameters; }
+    juce::AudioProcessorValueTreeState& getValueTreeState() noexcept { return parameters; }
 
     // Meters (for editor)
-    float getInputLevel() const noexcept { return inputLevel; }
-    float getOutputLevel() const noexcept { return outputLevel; }
-
-private:
-    //==============================================================================
-    juce::AudioProcessorValueTreeState parameters;
-    std::unique_ptr<ReverbDSP> reverb;
-
-    float inputLevel = 0.0f;
-    float outputLevel = 0.0f;
+    float getInputLevel() const noexcept { return inputLevel.load(std::memory_order_relaxed); }
+    float getOutputLevel() const noexcept { return outputLevel.load(std::memory_order_relaxed); }
 
     // Parameter IDs
     static constexpr char sizeID[]        = "size";
@@ -66,7 +60,13 @@ private:
     static constexpr char mixID[]         = "mix";
     static constexpr char spaceTypeID[]   = "spaceType";
 
-    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+private:
+    juce::AudioProcessorValueTreeState parameters;
+    ReverbDSP reverb;
+    std::atomic<float> inputLevel { 0.0f }, outputLevel { 0.0f };
+
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void updateReverbParameters();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VoidChamberReverbAudioProcessor)
 };
