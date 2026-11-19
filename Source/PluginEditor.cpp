@@ -85,7 +85,7 @@ void LevelMeter::paintMeter (juce::Graphics& g, bool pink)
 
     // Track body
     juce::Path trackPath;
-    trackPath.addRoundedRectangle (track, trackW * 0.32f);
+    trackPath.addRectangle (track);
     g.setColour (juce::Colour (0xff0b0d12));
     g.fillPath (trackPath);
     g.setColour (VoidGUI::panelStroke);
@@ -108,13 +108,8 @@ void LevelMeter::paintMeter (juce::Graphics& g, bool pink)
         grad.addColour (0.55, pink ? VoidGUI::pink : VoidGUI::cyan);
         g.setGradientFill (grad);
         juce::Path fillPath;
-        fillPath.addRoundedRectangle (fillRect, trackW * 0.22f);
+        fillPath.addRectangle (fillRect);
         g.fillPath (fillPath);
-
-        // Segment gaps
-        g.setColour (juce::Colour (0xff0b0d12).withAlpha (0.55f));
-        for (float yy = fillRect.getBottom() - 6.0f; yy > fillRect.getY() + 2.0f; yy -= 6.0f)
-            g.drawLine (fillRect.getX(), yy, fillRect.getRight(), yy, 1.6f);
     }
 
     // Peak hold line
@@ -178,7 +173,7 @@ void DecayArcSlider::paint (juce::Graphics& g)
     track.startNewSubPath (arcPoint (a0));
     track.addCentredArc (cx, cy, radius, radius, 0.0f, a0, a1, true);
     g.setColour (juce::Colour (0xff191c23));
-    g.strokePath (track, juce::PathStrokeType (11.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath (track, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour (juce::Colour (0xff363d49));
     g.strokePath (track, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
@@ -199,30 +194,30 @@ void DecayArcSlider::paint (juce::Graphics& g)
         juce::ignoreUnused (apexPt);
 
         g.setColour (VoidGUI::cyan.withAlpha (0.18f));
-        g.strokePath (value, juce::PathStrokeType (26.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (value, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour (VoidGUI::cyan.withAlpha (0.35f));
-        g.strokePath (value, juce::PathStrokeType (15.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (value, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setGradientFill (neon);
-        g.strokePath (value, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.strokePath (value, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         const auto tip = arcPoint (aNow);
         g.setColour (juce::Colours::white);
-        g.fillEllipse (tip.x - 4.6f, tip.y - 4.6f, 9.2f, 9.2f);
+        g.fillEllipse (tip.x - 1.3f, tip.y - 1.3f, 2.6f, 2.6f);
     }
 
     // ---- Labels
-    VoidGUI::drawTrackedText (g, "DECAY TIME", { cx - 130.0f, 56.0f, 260.0f, 20.0f }, 5.5f,
+    VoidGUI::drawTrackedText (g, "DECAY TIME", { cx - 130.0f, 56.0f, 260.0f, 20.0f }, 2.0f,
                               VoidGUI::font (400, 15.0f), juce::Colour (0xffcdd2de));
 
     const auto seconds = (float) getValue();
     const auto numberText = seconds < 10.0f ? juce::String (seconds, 1) : juce::String (juce::roundToInt (seconds));
-    g.setFont (VoidGUI::font (200, 66.0f));
+    g.setFont (VoidGUI::font (400, 52.0f));
     g.setColour (VoidGUI::white);
     const float numW = VoidGUI::textWidth (g.getCurrentFont(), numberText);
     g.setFont (VoidGUI::font (300, 27.0f));
     const float unitW = VoidGUI::textWidth (g.getCurrentFont(), " s");
     const float totalW = numW + unitW;
-    g.setFont (VoidGUI::font (200, 66.0f));
+    g.setFont (VoidGUI::font (400, 52.0f));
     g.drawSingleLineText (numberText, juce::roundToInt (cx - totalW * 0.5f), 142);
     g.setFont (VoidGUI::font (300, 27.0f));
     g.setColour (VoidGUI::textDim);
@@ -241,7 +236,7 @@ void DecayArcSlider::paint (juce::Graphics& g)
         const float bx = cx - halfSpan + t * halfSpan * 2.0f;
         const float alpha = 0.15f + 0.75f * (1.0f - t);
         g.setColour (VoidGUI::pink.withAlpha (alpha));
-        g.drawLine (bx, baseY - barH, bx, baseY + barH * 0.82f, 2.0f);
+        g.drawLine (bx, baseY - barH, bx, baseY + 8.0f, 0.8f);
     }
 
     juce::Path curve1, curve2;
@@ -314,7 +309,7 @@ void OrbButton::paint (juce::Graphics& g)
         g.setColour (VoidGUI::pink.withAlpha (0.10f));
         g.fillPath (platePath);
         g.setColour (VoidGUI::pink.withAlpha (0.35f));
-        g.strokePath (platePath, juce::PathStrokeType (5.5f));
+        g.strokePath (platePath, juce::PathStrokeType (2.0f));
         g.setColour (VoidGUI::pink);
         g.strokePath (platePath, juce::PathStrokeType (1.6f));
     }
@@ -1097,7 +1092,9 @@ VoidChamberReverbAudioProcessorEditor::VoidChamberReverbAudioProcessorEditor (Vo
     presetNameButton.setButtonText (presetNameText);
 
     setResizable (true, true);
-    setResizeLimits (1075, 717, 3072, 2048);
+    setResizeLimits (960, 640, 3072, 2048);
+    if (auto* constrainer = getConstrainer())
+        constrainer->setFixedAspectRatio (designW / designH);
     setSize (1536, 1024);
 
     startTimerHz (30);
@@ -1174,11 +1171,11 @@ void VoidChamberReverbAudioProcessorEditor::updateCachedTexts()
 
 void VoidChamberReverbAudioProcessorEditor::paintPanels (juce::Graphics& g)
 {
-    VoidGUI::drawPanel (g, dr (34.0f, 575.0f, 471.0f, 173.0f), 17.0f, 0.70f);
-    VoidGUI::drawPanel (g, dr (1030.0f, 575.0f, 472.0f, 173.0f), 17.0f, 0.70f);
-    VoidGUI::drawPanel (g, dr (34.0f, 756.0f, 534.0f, 192.0f), 17.0f, 0.72f);
-    VoidGUI::drawPanel (g, dr (578.0f, 756.0f, 432.0f, 192.0f), 17.0f, 0.72f);
-    VoidGUI::drawPanel (g, dr (1020.0f, 756.0f, 482.0f, 192.0f), 17.0f, 0.72f);
+    VoidGUI::drawPanel (g, dr (42.0f, 548.0f, 474.0f, 194.0f), 17.0f, 0.70f);
+    VoidGUI::drawPanel (g, dr (1024.0f, 548.0f, 470.0f, 194.0f), 17.0f, 0.70f);
+    VoidGUI::drawPanel (g, dr (30.0f, 750.0f, 540.0f, 220.0f), 17.0f, 0.72f);
+    VoidGUI::drawPanel (g, dr (580.0f, 750.0f, 438.0f, 220.0f), 17.0f, 0.72f);
+    VoidGUI::drawPanel (g, dr (1028.0f, 750.0f, 466.0f, 220.0f), 17.0f, 0.72f);
 }
 
 void VoidChamberReverbAudioProcessorEditor::paintFrame (juce::Graphics& g)
@@ -1226,22 +1223,23 @@ void VoidChamberReverbAudioProcessorEditor::paintFrame (juce::Graphics& g)
 
 void VoidChamberReverbAudioProcessorEditor::paintHeader (juce::Graphics& g)
 {
+    VoidGUI::drawPanel (g, dr (32.0f, 42.0f, 1472.0f, 66.0f), 16.0f, 0.86f);
     // Left: logo + maker
-    drawLogoBars (g, dr (46.0f, 44.0f, 76.0f, 44.0f));
-    VoidGUI::drawTrackedText (g, "D.A Production", dr (118.0f, 50.0f, 260.0f, 34.0f), 2.6f,
+    drawLogoBars (g, dr (62.0f, 66.0f, 46.0f, 28.0f));
+    VoidGUI::drawTrackedText (g, "D.A Production", dr (124.0f, 62.0f, 300.0f, 34.0f), 2.6f,
                               VoidGUI::font (500, 19.5f), juce::Colour (0xffd5d9e2),
                               juce::Justification::centredLeft);
 
     // Centre: tagline + wordmark + sub-wordmark
-    VoidGUI::drawTrackedText (g, "SPACE BEYOND SOUND", dr (designW * 0.5f - 260.0f, 34.0f, 520.0f, 16.0f), 5.2f,
+    VoidGUI::drawTrackedText (g, "SPACE BEYOND SOUND", dr (designW * 0.5f - 260.0f, 64.0f, 520.0f, 16.0f), 5.2f,
                               VoidGUI::font (400, 11.5f), VoidGUI::textFaint);
 
     // VOID CHAMBER — wide, hairline, with a faint bloom underneath
-    VoidGUI::drawTrackedText (g, "VOID CHAMBER", dr (designW * 0.5f - 500.0f, 108.0f, 1000.0f, 62.0f), 26.0f,
-                              VoidGUI::font (200, 57.0f), juce::Colour (0xffe9ebf2));
+    VoidGUI::drawTrackedText (g, "VOID CHAMBER", dr (designW * 0.5f - 500.0f, 108.0f, 1000.0f, 62.0f), 17.0f,
+                              VoidGUI::font (300, 44.0f), juce::Colour (0xffe9ebf2));
 
-    VoidGUI::drawTrackedText (g, "R E V E R B", dr (designW * 0.5f - 200.0f, 168.0f, 400.0f, 20.0f), 17.0f,
-                              VoidGUI::font (300, 16.0f), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "REVERB", dr (designW * 0.5f - 200.0f, 168.0f, 400.0f, 20.0f), 16.0f,
+                              VoidGUI::font (400, 16.0f), VoidGUI::textDim);
 
     // Right side: stacked caption
     const juce::String caption[4] = { "INFINITE", "SPACES.", "REAL", "EMOTIONS" };
@@ -1255,9 +1253,8 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (bgVoid);
 
-    const float s = uiScale;
     g.saveState();
-    g.addTransform (juce::AffineTransform::scale (s).translated (designBounds.getX() / s, designBounds.getY() / s));
+    g.addTransform (juce::AffineTransform::scale (getWidth() / designW, getHeight() / designH));
 
     // Backdrop scene
     if (background.isValid())
@@ -1269,31 +1266,31 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
     paintHeader (g);
 
     // Panel titles
-    VoidGUI::drawTrackedText (g, "SIZE",      dr (34.0f, 587.0f, 260.0f, 22.0f), 5.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "PRE DELAY", dr (236.0f, 587.0f, 260.0f, 22.0f), 5.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "DAMPING",   dr (964.0f, 587.0f, 260.0f, 22.0f), 5.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "M O D U L A T I O N", dr (1216.0f, 587.0f, 268.0f, 22.0f), 5.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "SIZE",      dr (30.0f, 561.0f, 260.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "PRE DELAY", dr (254.0f, 561.0f, 260.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "DAMPING",   dr (1022.0f, 561.0f, 260.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "MODULATION", dr (1238.0f, 561.0f, 268.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
 
     // Knob value readouts
     const auto valueFont = VoidGUI::font (400, 19.0f);
     g.setFont (valueFont);
     g.setColour (VoidGUI::white);
-    g.drawText (sizeText,       dr (34.0f, 706.0f, 260.0f, 24.0f),   juce::Justification::centred);
-    g.drawText (preDelayText,   dr (236.0f, 706.0f, 260.0f, 24.0f),  juce::Justification::centred);
-    g.drawText (dampingText,    dr (964.0f, 706.0f, 260.0f, 24.0f),  juce::Justification::centred);
-    g.drawText (modulationText, dr (1216.0f, 706.0f, 268.0f, 24.0f), juce::Justification::centred);
+    g.drawText (sizeText,       dr (30.0f, 718.0f, 260.0f, 24.0f),   juce::Justification::centred);
+    g.drawText (preDelayText,   dr (254.0f, 718.0f, 260.0f, 24.0f),  juce::Justification::centred);
+    g.drawText (dampingText,    dr (1022.0f, 718.0f, 260.0f, 24.0f),  juce::Justification::centred);
+    g.drawText (modulationText, dr (1238.0f, 718.0f, 268.0f, 24.0f), juce::Justification::centred);
 
     // Meter labels + mix readout
     VoidGUI::drawTrackedText (g, "INPUT",  dr (46.0f, 148.0f, 100.0f, 20.0f), 5.0f, VoidGUI::font (400, 14.0f), VoidGUI::textDim);
     VoidGUI::drawTrackedText (g, "OUTPUT", dr (1390.0f, 148.0f, 100.0f, 20.0f), 5.0f, VoidGUI::font (400, 14.0f), VoidGUI::textDim);
     g.setFont (valueFont);
     g.setColour (VoidGUI::white);
-    g.drawText (mixText, dr (1392.0f, 544.0f, 96.0f, 22.0f), juce::Justification::centred);
+    g.drawText (mixText, dr (1386.0f, 532.0f, 96.0f, 22.0f), juce::Justification::centred);
 
     // Bottom panel titles
-    VoidGUI::drawTrackedText (g, "SPACE TYPE",     dr (56.0f, 766.0f, 260.0f, 18.0f), 4.2f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
-    VoidGUI::drawTrackedText (g, "FREQUENCY DECAY", dr (600.0f, 766.0f, 280.0f, 18.0f), 4.2f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
-    VoidGUI::drawTrackedText (g, "ADVANCED",       dr (1042.0f, 766.0f, 220.0f, 18.0f), 4.2f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
+    VoidGUI::drawTrackedText (g, "SPACE TYPE",     dr (56.0f, 766.0f, 260.0f, 18.0f), 1.8f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
+    VoidGUI::drawTrackedText (g, "FREQUENCY DECAY", dr (600.0f, 766.0f, 280.0f, 18.0f), 1.8f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
+    VoidGUI::drawTrackedText (g, "ADVANCED",       dr (1042.0f, 766.0f, 220.0f, 18.0f), 1.8f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
 
     // FREQUENCY DECAY legend — right-justified against the panel edge and
     // pushed clear of the title by measuring both.
@@ -1316,14 +1313,15 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
     for (int i = 0; i < titleText.length(); ++i)
         titleWidth += VoidGUI::textWidth (titleFont, titleText.substring (i, i + 1)) + 4.2f;
     titleWidth -= 4.2f;
-    float legendX = juce::jmax (panelRight - legendWidth, 600.0f + titleWidth + 22.0f);
+    juce::ignoreUnused (titleWidth);
+    float legendX = panelRight - legendWidth;
     for (int i = 0; i < 3; ++i)
     {
         g.setColour (legendColours[i]);
-        g.fillEllipse (legendX, 770.0f, dot, dot);
+        g.fillEllipse (legendX, 794.0f, dot, dot);
         g.setColour (VoidGUI::textDim);
         g.setFont (legendFont);
-        g.drawSingleLineText (legendLabels[i], juce::roundToInt (legendX + dot + dotGap), 780);
+        g.drawSingleLineText (legendLabels[i], juce::roundToInt (legendX + dot + dotGap), 804);
         legendX += dot + dotGap + labelWidths[i] + itemGap;
     }
 
@@ -1333,16 +1331,9 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
 void VoidChamberReverbAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds();
-    const float scale = juce::jmin (static_cast<float> (area.getWidth()) / designW,
-                                    static_cast<float> (area.getHeight()) / designH);
-    const float offsetX = (static_cast<float> (area.getWidth()) - designW * scale) * 0.5f;
-    const float offsetY = (static_cast<float> (area.getHeight()) - designH * scale) * 0.5f;
-
-    uiScale = scale;
-    designBounds = juce::Rectangle<int> (juce::roundToInt (offsetX), juce::roundToInt (offsetY),
-                                         juce::roundToInt (designW * scale), juce::roundToInt (designH * scale));
-
-    layoutContents (scale, offsetX, offsetY);
+    // Host-driven sizes can bypass the corner constrainer. Fill both axes
+    // rather than letterboxing; paint and hit targets share this transform.
+    layoutContents (static_cast<float> (area.getWidth()) / designW, 0.0f, 0.0f);
 
     if (browser)
         browser->setBounds (area);
@@ -1350,51 +1341,52 @@ void VoidChamberReverbAudioProcessorEditor::resized()
 
 void VoidChamberReverbAudioProcessorEditor::layoutContents (float scale, float offsetX, float offsetY)
 {
-    const auto place = [scale, offsetX, offsetY] (juce::Component& comp,
-                                                  float x, float y, float w, float h)
+    juce::ignoreUnused (offsetX, offsetY);
+    const float scaleY = getHeight() / designH;
+    const auto place = [scale, scaleY] (juce::Component& comp, float x, float y, float w, float h)
     {
-        comp.setBounds (juce::roundToInt (offsetX + x * scale),
-                        juce::roundToInt (offsetY + y * scale),
-                        juce::roundToInt (w * scale),
-                        juce::roundToInt (h * scale));
+        comp.setTransform (juce::AffineTransform());
+        comp.setBounds (juce::roundToInt (x), juce::roundToInt (y),
+                        juce::roundToInt (w), juce::roundToInt (h));
+        comp.setTransform (juce::AffineTransform::scale (scale, scaleY));
     };
 
     // Header preset navigation
-    place (presetPrev,      1002.0f, 36.0f, 48.0f, 52.0f);
-    place (presetNameButton, 1054.0f, 29.0f, 270.0f, 66.0f);
-    place (presetNext,      1328.0f, 36.0f, 48.0f, 52.0f);
-    place (menuButton,      1400.0f, 32.0f, 48.0f, 60.0f);
+    place (presetPrev,      1144.0f, 62.0f, 42.0f, 36.0f);
+    place (presetNameButton, 1186.0f, 62.0f, 198.0f, 36.0f);
+    place (presetNext,      1384.0f, 62.0f, 42.0f, 36.0f);
+    place (menuButton,      1440.0f, 58.0f, 40.0f, 40.0f);
 
     // Left / right meter columns
-    place (inputMeter,  46.0f, 168.0f, 100.0f, 244.0f);
-    place (monoButton,  48.0f, 446.0f, 128.0f, 40.0f);
-    place (stereoButton, 48.0f, 490.0f, 128.0f, 40.0f);
-    place (outputMeter, 1390.0f, 168.0f, 100.0f, 244.0f);
-    place (mixSlider,   1392.0f, 442.0f, 96.0f, 96.0f);
+    place (inputMeter,  54.0f, 176.0f, 100.0f, 240.0f);
+    place (monoButton,  57.0f, 435.0f, 94.0f, 32.0f);
+    place (stereoButton, 57.0f, 469.0f, 94.0f, 32.0f);
+    place (outputMeter, 1380.0f, 176.0f, 100.0f, 240.0f);
+    place (mixSlider,   1382.0f, 448.0f, 104.0f, 104.0f);
 
     // Knob row
-    place (sizeSlider,       110.0f, 601.0f, 124.0f, 124.0f);
-    place (preDelaySlider,   312.0f, 607.0f, 112.0f, 112.0f);
-    place (dampingSlider,   1038.0f, 607.0f, 112.0f, 112.0f);
-    place (modulationSlider, 1290.0f, 601.0f, 124.0f, 124.0f);
+    place (sizeSlider,       78.0f, 579.0f, 164.0f, 164.0f);
+    place (preDelaySlider,   302.0f, 579.0f, 164.0f, 164.0f);
+    place (dampingSlider,   1070.0f, 579.0f, 164.0f, 164.0f);
+    place (modulationSlider, 1290.0f, 579.0f, 164.0f, 164.0f);
 
     // Decay arc (sits above the bottom panels, in front of the scene)
-    place (decaySlider, 510.0f, 520.0f, 516.0f, 248.0f);
+    place (decaySlider, 550.0f, 510.0f, 436.0f, 210.0f);
 
     // SPACE TYPE orbs
-    const float orbCenters[5] = { 92.0f, 190.0f, 288.0f, 386.0f, 484.0f };
+    const float orbCenters[5] = { 104.0f, 212.0f, 314.0f, 414.0f, 514.0f };
     for (int i = 0; i < 5; ++i)
-        place (orbs[i], orbCenters[i] - 47.0f, 792.0f, 94.0f, 150.0f);
+        place (orbs[i], orbCenters[i] - 43.0f, 796.0f, 86.0f, 124.0f);
 
     // FREQUENCY DECAY graph
-    place (freqGraph, 596.0f, 792.0f, 396.0f, 152.0f);
+    place (freqGraph, 590.0f, 807.0f, 414.0f, 132.0f);
 
     // ADVANCED cells
-    const float cellX[4] = { 1042.0f, 1154.0f, 1266.0f, 1378.0f };
-    place (diffusionCell, cellX[0], 792.0f, 92.0f, 152.0f);
-    place (widthCell,     cellX[1], 792.0f, 92.0f, 152.0f);
-    place (airCell,       cellX[2], 792.0f, 92.0f, 152.0f);
-    place (characterCell, cellX[3], 792.0f, 92.0f, 152.0f);
+    const float cellX[4] = { 1042.0f, 1150.0f, 1258.0f, 1366.0f };
+    place (diffusionCell, cellX[0], 792.0f, 92.0f, 148.0f);
+    place (widthCell,     cellX[1], 792.0f, 92.0f, 148.0f);
+    place (airCell,       cellX[2], 792.0f, 92.0f, 148.0f);
+    place (characterCell, cellX[3], 792.0f, 92.0f, 148.0f);
 }
 
 void VoidChamberReverbAudioProcessorEditor::timerCallback()

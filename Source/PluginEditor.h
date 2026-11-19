@@ -237,8 +237,6 @@ private:
     juce::TextButton presetNameButton;
     std::unique_ptr<PresetBrowser> browser;
 
-    juce::Rectangle<int> designBounds;   // where the 1536x1024 design actually sits
-    float uiScale = 1.0f;
     float dBTextTimer = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoidChamberReverbAudioProcessorEditor)

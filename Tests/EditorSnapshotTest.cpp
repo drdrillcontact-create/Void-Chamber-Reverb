@@ -6,7 +6,7 @@
 
 int main(int argc, char* argv[])
 {
-    juce::ignoreUnused(argc);
+    if (argc < 2) return 2;
 
     // Required before touching any JUCE GUI code on every platform —
     // without it the graphics subsystem is not initialised.
@@ -37,22 +37,31 @@ int main(int argc, char* argv[])
     }
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    editor->setSize(1440, 960);
-
-    // Settle the timer-driven visual state (selected orb, toggle states,
-    // cached value texts, meter levels) so the snapshot matches a live editor.
-    static_cast<VoidChamberReverbAudioProcessorEditor*>(editor.get())->timerCallback();
-
-    // Let any pending layout settle, then render the full component tree.
-    juce::Image image(juce::Image::ARGB, editor->getWidth(), editor->getHeight(), true);
+    // Include host-driven off-ratio sizes: some DAWs bypass the constrainer.
+    const juce::Point<int> sizes[] = { {1536, 1024}, {960, 640}, {1200, 900}, {1800, 900} };
+    for (int index = 0; index < 4; ++index)
     {
-        juce::Graphics g(image);
-        editor->paintEntireComponent(g, true);
-    }
+        editor->setSize (sizes[index].x, sizes[index].y);
+        static_cast<VoidChamberReverbAudioProcessorEditor*>(editor.get())->timerCallback();
+        juce::Image image (juce::Image::ARGB, editor->getWidth(), editor->getHeight(), true);
+        { juce::Graphics g (image); editor->paintEntireComponent (g, true); }
 
-    const auto out = juce::File(juce::String(argv[1]));
-    out.deleteFile();
-    juce::FileOutputStream stream(out);
-    juce::PNGImageFormat().writeImageToStream(image, stream);
-    return stream.failedToOpen() ? 1 : 0;
+        // The bezel must stay next to BOTH edges, never in a letterboxed centre.
+        const int y = image.getHeight() / 2;
+        const int edge = juce::roundToInt (5.0f * image.getWidth() / 1536.0f);
+        const auto backgroundColour = image.getPixelAt (0, y);
+        if (image.getPixelAt (edge, y) == backgroundColour
+            || image.getPixelAt (image.getWidth() - edge - 1, y) == backgroundColour)
+            return 3;
+
+        const juce::File base (juce::String (argv[1]));
+        const auto out = index == 0 ? base : base.getSiblingFile (
+            base.getFileNameWithoutExtension() + "-" + juce::String (sizes[index].x)
+            + "x" + juce::String (sizes[index].y) + ".png");
+        out.deleteFile();
+        juce::FileOutputStream stream (out);
+        if (stream.failedToOpen() || ! juce::PNGImageFormat().writeImageToStream (image, stream))
+            return 1;
+    }
+    return 0;
 }

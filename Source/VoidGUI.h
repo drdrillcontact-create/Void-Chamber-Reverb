@@ -111,9 +111,9 @@ namespace VoidGUI
     // Soft neon glow stroke: three passes wide->thin.
     inline void strokeGlow (juce::Graphics& g, const juce::Path& path, juce::Colour colour, float coreWidth)
     {
-        g.setColour (colour.withAlpha (0.16f));
+        g.setColour (colour.withAlpha (0.08f));
         g.strokePath (path, juce::PathStrokeType (coreWidth * 2.7f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (colour.withAlpha (0.38f));
+        g.setColour (colour.withAlpha (0.18f));
         g.strokePath (path, juce::PathStrokeType (coreWidth * 1.55f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour (colour);
         g.strokePath (path, juce::PathStrokeType (coreWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -150,7 +150,7 @@ public:
 
         const auto accentColour = accent == Accent::pink ? VoidGUI::pink : VoidGUI::cyan;
         const float arcRadius   = size * 0.400f;
-        const float trackWidth  = size * 0.062f;
+        const float trackWidth  = size * 0.022f;
 
         const float a0 = rotaryStartAngle;
         const float a1 = a0 + (rotaryEndAngle - rotaryStartAngle) * sliderPosProportional;
@@ -177,22 +177,22 @@ public:
             juce::Path value;
             value.startNewSubPath (arcPoint (a0, r));
             value.addCentredArc (cx, cy, r, r, 0.0f, a0, a1, true);
-            VoidGUI::strokeGlow (g, value, accentColour, trackWidth * 0.62f);
+            VoidGUI::strokeGlow (g, value, accentColour, trackWidth * 0.80f);
 
             // Hot tip dot
             const auto tip = arcPoint (a1, r);
-            g.setColour (juce::Colours::white.withAlpha (0.95f));
+            g.setColour (juce::Colours::white.withAlpha (0.40f));
             g.fillEllipse (tip.x - trackWidth * 0.34f, tip.y - trackWidth * 0.34f,
                            trackWidth * 0.68f, trackWidth * 0.68f);
         }
 
         // --- body -----------------------------------------------------------------
-        const float bodyR = size * 0.315f;
+        const float bodyR = size * 0.350f;
         const auto bodyRect = VoidGUI::centredRect (centre, bodyR * 2.0f, bodyR * 2.0f);
 
-        juce::ColourGradient bodyGrad (juce::Colour (0xff3a3d46), centre.x - bodyR * 0.4f, centre.y - bodyR * 0.5f,
+        juce::ColourGradient bodyGrad (juce::Colour (0xff202129), centre.x - bodyR * 0.4f, centre.y - bodyR * 0.5f,
                                        juce::Colour (0xff101218), centre.x + bodyR * 0.35f, centre.y + bodyR * 0.5f, true);
-        bodyGrad.addColour (0.45, juce::Colour (0xff23252c));
+        bodyGrad.addColour (0.45, juce::Colour (0xff0e1015));
         g.setGradientFill (bodyGrad);
         g.fillEllipse (bodyRect);
 
@@ -214,7 +214,7 @@ public:
         const auto  p1           = centre + dir * (bodyR * 0.86f);
 
         g.setColour (juce::Colour (0xffe8ecf5));
-        g.drawLine ({ p0, p1 }, size * 0.028f);
+        g.drawLine ({ p0, p1 }, size * 0.016f);
         g.setColour (accentColour.withAlpha (0.9f));
         g.fillEllipse (p0.x - size * 0.016f, p0.y - size * 0.016f, size * 0.032f, size * 0.032f);
     }
