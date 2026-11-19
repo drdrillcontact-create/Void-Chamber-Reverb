@@ -110,6 +110,37 @@ jobs:
       - name: Upload plugin
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          archive: false
+          name: ${{ matrix.artifact }}
           path: build/VoidChamberReverb_artefacts/Release/${{ matrix.format }}/${{ matrix.artifact }}.zip
           if-no-files-found: error
+
+  publish-titanium-preview:
+    name: Publish tested Titanium preview
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/998f85ab-void-chamber-reverb' && contains(github.event.head_commit.message, '[titanium-preview]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download tested plugin packages
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: VoidChamberReverb-*
+          path: release-files
+          merge-multiple: true
+      - name: Download actual editor renders
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: editor-snapshot-Windows
+          path: release-files
+      - name: Publish downloadable preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: titanium-preview-${{ github.run_number }}
+        shell: bash
+        run: |
+          gh release create "$TAG" release-files/*.zip release-files/*.png \
+            --target "$GITHUB_SHA" --prerelease --title "Titanium knobs — preview ${{ github.run_number }}" \
+            --notes "Test build with Titanium rotary knobs: live indicators, pink/cyan value arcs, and shared metal artwork. Windows x64 VST3 and macOS universal AU. Both platform builds, DSP tests and four-size editor renders passed. Unsigned preview; macOS may require local approval. Download the PNGs to inspect the actual UI before installing."

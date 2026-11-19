@@ -12,6 +12,46 @@ int main(int argc, char* argv[])
     // without it the graphics subsystem is not initialised.
     juce::ScopedJuceInitialiser_GUI juceInitialiser;
 
+    // A moving indicator and per-accent value arc must not be baked into the
+    // Titanium face. Exercise both accents at minimum, middle and maximum.
+    const auto face = juce::ImageCache::getFromMemory (
+        BinaryData::titaniumknobbody_png, BinaryData::titaniumknobbody_pngSize);
+    if (! face.isValid()) return 4;
+    juce::Image knobSheet (juce::Image::ARGB, 600, 400, true);
+    for (int row = 0; row < 2; ++row)
+    {
+        VoidKnobLookAndFeel feel (row == 0 ? VoidKnobLookAndFeel::Accent::pink
+                                          : VoidKnobLookAndFeel::Accent::cyan);
+        juce::Slider slider;
+        juce::Image renders[3];
+        for (int col = 0; col < 3; ++col)
+        {
+            renders[col] = juce::Image (juce::Image::ARGB, 200, 200, true);
+            juce::Graphics g (renders[col]);
+            feel.drawRotarySlider (g, 0, 0, 200, 200, col * 0.5f, -2.3561945f, 2.3561945f, slider);
+            juce::Graphics sheet (knobSheet);
+            sheet.drawImageAt (renders[col], col * 200, row * 200);
+        }
+        // Centre of the moving indicator at the minimum and maximum angles.
+        for (int col : { 0, 2 })
+        {
+            const float a = col == 0 ? -2.3561945f : 2.3561945f;
+            const int x = juce::roundToInt (100.0f + 52.8f * std::sin (a));
+            const int y = juce::roundToInt (100.0f - 52.8f * std::cos (a));
+            if (renders[col].getPixelAt (x, y) == renders[1].getPixelAt (x, y)) return 5;
+        }
+        const auto arcPixel = renders[2].getPixelAt (41, 43);
+        if (row == 0 ? arcPixel.getRed() <= arcPixel.getBlue()
+                     : arcPixel.getBlue() <= arcPixel.getRed()) return 6;
+    }
+    {
+        const juce::File base { juce::String (argv[1]) };
+        const auto out = base.getSiblingFile ("editor-snapshot-knobs.png");
+        out.deleteFile();
+        juce::FileOutputStream stream (out);
+        if (stream.failedToOpen() || ! juce::PNGImageFormat().writeImageToStream (knobSheet, stream)) return 1;
+    }
+
     VoidChamberReverbAudioProcessor processor;
 
     // Feed a bright test tone through the effect so the meters show signal,

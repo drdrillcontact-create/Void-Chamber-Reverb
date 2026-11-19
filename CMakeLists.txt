@@ -13,6 +13,7 @@ add_subdirectory("${JUCE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE" EXCLUDE_FROM_
 # Binary assets (background scene and the five Space Type orbs).
 juce_add_binary_data(VoidChamberAssets
     SOURCES
+        Assets/titanium-knob-body.png
         Assets/void-background.jpg
         Assets/space-void.jpg
         Assets/space-hall.jpg

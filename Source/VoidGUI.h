@@ -143,80 +143,83 @@ public:
                            float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle,
                            juce::Slider& slider) override
     {
+        juce::ignoreUnused (slider);
         const auto bounds = juce::Rectangle<float> (static_cast<float> (x), static_cast<float> (y),
                                                     static_cast<float> (width), static_cast<float> (height));
-        const float size  = juce::jmin (bounds.getWidth(), bounds.getHeight());
+        const float size = juce::jmin (bounds.getWidth(), bounds.getHeight());
+        if (size <= 0.0f) return;
         const auto centre = bounds.getCentre();
-
-        const auto accentColour = accent == Accent::pink ? VoidGUI::pink : VoidGUI::cyan;
-        const float arcRadius   = size * 0.400f;
-        const float trackWidth  = size * 0.022f;
-
-        const float a0 = rotaryStartAngle;
-        const float a1 = a0 + (rotaryEndAngle - rotaryStartAngle) * sliderPosProportional;
-
-        // --- halo track (dim) --------------------------------------------------
-        juce::Path track;
-        const float r = arcRadius;
         const float cx = centre.x, cy = centre.y;
-        const auto arcPoint = [&] (float angle, float radius)
+        const float pos = juce::jlimit (0.0f, 1.0f, sliderPosProportional);
+        const float angle = rotaryStartAngle + (rotaryEndAngle - rotaryStartAngle) * pos;
+        const auto colour = accent == Accent::pink ? VoidGUI::pink : VoidGUI::cyan;
+        const auto at = [=] (float a, float radius)
         {
-            return juce::Point<float> (cx + radius * std::sin (angle),
-                                       cy - radius * std::cos (angle));
+            return juce::Point<float> (cx + radius * std::sin (a), cy - radius * std::cos (a));
         };
-        track.startNewSubPath (arcPoint (a0, r));
-        track.addCentredArc (cx, cy, r, r, 0.0f, a0, rotaryEndAngle, true);
-        g.setColour (juce::Colour (0xff1b1e26));
-        g.strokePath (track, juce::PathStrokeType (trackWidth, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (juce::Colour (0xff343a47));
-        g.strokePath (track, juce::PathStrokeType (trackWidth * 0.32f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-        // --- value arc (neon) ----------------------------------------------------
-        if (sliderPosProportional > 0.004f)
+        const auto circle = [=] (float radius)
         {
-            juce::Path value;
-            value.startNewSubPath (arcPoint (a0, r));
-            value.addCentredArc (cx, cy, r, r, 0.0f, a0, a1, true);
-            VoidGUI::strokeGlow (g, value, accentColour, trackWidth * 0.80f);
+            return VoidGUI::centredRect (centre, radius * 2.0f, radius * 2.0f);
+        };
 
-            // Hot tip dot
-            const auto tip = arcPoint (a1, r);
-            g.setColour (juce::Colours::white.withAlpha (0.40f));
-            g.fillEllipse (tip.x - trackWidth * 0.34f, tip.y - trackWidth * 0.34f,
-                           trackWidth * 0.68f, trackWidth * 0.68f);
+        // Stationary machined bezel and engraved scale (not baked into artwork).
+        g.setColour (juce::Colours::black.withAlpha (0.65f));
+        g.fillEllipse (circle (size * 0.48f).translated (0.0f, size * 0.016f));
+        juce::ColourGradient bezel (juce::Colour (0xff76777c), cx, cy - size * 0.47f,
+                                    juce::Colour (0xff15161a), cx, cy + size * 0.47f, false);
+        bezel.addColour (0.14, juce::Colour (0xff34353a));
+        bezel.addColour (0.55, juce::Colour (0xff151619));
+        g.setGradientFill (bezel);
+        g.fillEllipse (circle (size * 0.465f));
+        g.setColour (juce::Colour (0xff0d0e10));
+        g.fillEllipse (circle (size * 0.444f));
+        g.setColour (juce::Colour (0xff535459));
+        g.drawEllipse (circle (size * 0.454f), size * 0.006f);
+        for (int i = 0; i <= 30; ++i)
+        {
+            const float a = rotaryStartAngle + (rotaryEndAngle - rotaryStartAngle) * i / 30.0f;
+            const bool major = i % 5 == 0;
+            g.setColour (juce::Colour (major ? 0xff97989c : 0xff4d4f55));
+            g.drawLine ({ at (a, size * (major ? 0.427f : 0.434f)), at (a, size * 0.444f) },
+                        size * (major ? 0.006f : 0.003f));
         }
 
-        // --- body -----------------------------------------------------------------
-        const float bodyR = size * 0.350f;
-        const auto bodyRect = VoidGUI::centredRect (centre, bodyR * 2.0f, bodyR * 2.0f);
+        juce::Path track;
+        track.addCentredArc (cx, cy, size * 0.408f, size * 0.408f, 0.0f,
+                             rotaryStartAngle, rotaryEndAngle, true);
+        g.setColour (juce::Colour (0xff26272c));
+        g.strokePath (track, juce::PathStrokeType (size * 0.020f));
+        if (pos > 0.0001f)
+        {
+            juce::Path value;
+            value.addCentredArc (cx, cy, size * 0.408f, size * 0.408f, 0.0f,
+                                 rotaryStartAngle, angle, true);
+            VoidGUI::strokeGlow (g, value, colour, size * 0.017f);
+        }
 
-        juce::ColourGradient bodyGrad (juce::Colour (0xff202129), centre.x - bodyR * 0.4f, centre.y - bodyR * 0.5f,
-                                       juce::Colour (0xff101218), centre.x + bodyR * 0.35f, centre.y + bodyR * 0.5f, true);
-        bodyGrad.addColour (0.45, juce::Colour (0xff0e1015));
-        g.setGradientFill (bodyGrad);
-        g.fillEllipse (bodyRect);
+        // Fixed studio lighting on the titanium; only the indicator rotates.
+        // Cached decoded artwork is shared by all knobs, never resampled per tick.
+        static const auto body = juce::ImageCache::getFromMemory (
+            BinaryData::titaniumknobbody_png, BinaryData::titaniumknobbody_pngSize);
+        g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
+        g.drawImage (body, circle (size * 0.376f));
 
-        g.setColour (juce::Colour (0xff4a5060).withAlpha (0.9f));
-        g.drawEllipse (bodyRect, 1.1f);
+        const auto inner = at (angle, size * 0.211f);
+        const auto outer = at (angle, size * 0.317f);
+        const auto stroke = [] (float w)
+        {
+            return juce::PathStrokeType (w, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+        };
+        juce::Path pointer;
+        pointer.startNewSubPath (inner);
+        pointer.lineTo (outer);
+        g.setColour (juce::Colour (0xff1b1a17));
+        g.strokePath (pointer, stroke (size * 0.032f));
+        g.setColour (juce::Colour (0xffb7ad91));
+        g.strokePath (pointer, stroke (size * 0.023f));
+        g.setColour (juce::Colour (0xfffff2c8));
+        g.strokePath (pointer, stroke (size * 0.016f));
 
-        // Inner top bevel catch-light
-        juce::Path bevel;
-        bevel.addCentredArc (centre.x, centre.y, bodyR - 1.5f, bodyR - 1.5f, 0.0f,
-                             juce::MathConstants<float>::pi * 1.15f,
-                             juce::MathConstants<float>::pi * 1.85f, true);
-        g.setColour (juce::Colours::white.withAlpha (0.16f));
-        g.strokePath (bevel, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-        // --- pointer ----------------------------------------------------------------
-        const float pointerAngle = a0 + (rotaryEndAngle - rotaryStartAngle) * sliderPosProportional;
-        const auto  dir          = juce::Point<float> (std::sin (pointerAngle), -std::cos (pointerAngle));
-        const auto  p0           = centre + dir * (bodyR * 0.52f);
-        const auto  p1           = centre + dir * (bodyR * 0.86f);
-
-        g.setColour (juce::Colour (0xffe8ecf5));
-        g.drawLine ({ p0, p1 }, size * 0.016f);
-        g.setColour (accentColour.withAlpha (0.9f));
-        g.fillEllipse (p0.x - size * 0.016f, p0.y - size * 0.016f, size * 0.032f, size * 0.032f);
     }
 
 private:
