@@ -10,17 +10,23 @@ clean = source.copy()
 pixels = clean.load()
 # Same-radius samples outside the pointer preserve the concentric machining.
 # Feather the narrow patch into the surrounding sunburst face.
-for y in range(299, 402):
-    for x in range(496, 529):
+for y in range(298, 405):
+    for x in range(485, 540):
         dx, dy = x-512, y-520
         r = math.hypot(dx, dy)
         angle = math.atan2(dx, -dy)
-        sample_angle = angle + (0.15 if dx >= 0 else -0.15)
-        sx = round(512 + r * math.sin(sample_angle))
-        sy = round(520 - r * math.cos(sample_angle))
-        weight = min(1.0, (x-496)/5, (528-x)/5, (y-299)/5, (401-y)/5)
-        old, new = source.getpixel((x,y)), source.getpixel((sx,sy))
-        pixels[x,y] = tuple(round(a*(1-weight)+b*weight) for a,b in zip(old,new))
+        if abs(angle) >= 0.12 or not 115 < r < 222:
+            continue
+        samples = []
+        for side in (-0.13, 0.13):
+            sx = round(512 + r * math.sin(side))
+            sy = round(520 - r * math.cos(side))
+            samples.append(source.getpixel((sx, sy)))
+        t = (angle + 0.13) / 0.26
+        replacement = [a*(1-t)+b*t for a,b in zip(*samples)]
+        weight = min(1.0, (0.12-abs(angle))/0.035, (r-115)/10, (222-r)/10)
+        old = source.getpixel((x,y))
+        pixels[x,y] = tuple(round(a*(1-weight)+b*weight) for a,b in zip(old,replacement))
 # Only the face and knurled grip survive; all control state is drawn by JUCE.
 result = clean.crop((262,270,762,770)).convert('RGBA')
 p = result.load()
