@@ -27,8 +27,12 @@ int main(int argc, char* argv[])
         for (int col = 0; col < 3; ++col)
         {
             renders[col] = juce::Image (juce::Image::ARGB, 200, 200, true);
-            juce::Graphics g (renders[col]);
-            feel.drawRotarySlider (g, 0, 0, 200, 200, col * 0.5f, -2.3561945f, 2.3561945f, slider);
+            {
+                // Flush the native graphics context before copying the image
+                // (Direct2D may defer drawing until Graphics is destroyed).
+                juce::Graphics g (renders[col]);
+                feel.drawRotarySlider (g, 0, 0, 200, 200, col * 0.5f, -2.3561945f, 2.3561945f, slider);
+            }
             juce::Graphics sheet (knobSheet);
             sheet.drawImageAt (renders[col], col * 200, row * 200);
         }
@@ -44,6 +48,7 @@ int main(int argc, char* argv[])
         if (row == 0 ? arcPixel.getRed() <= arcPixel.getBlue()
                      : arcPixel.getBlue() <= arcPixel.getRed()) return 6;
     }
+    if (knobSheet.getPixelAt (100, 100).isTransparent()) return 7;
     {
         const juce::File base { juce::String (argv[1]) };
         const auto out = base.getSiblingFile ("editor-snapshot-knobs.png");
