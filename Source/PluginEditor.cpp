@@ -218,10 +218,10 @@ void DecayArcSlider::paint (juce::Graphics& g)
     const float unitW = VoidGUI::textWidth (g.getCurrentFont(), " s");
     const float totalW = numW + unitW;
     g.setFont (VoidGUI::font (400, 52.0f));
-    g.drawSingleLineText (numberText, juce::roundToInt (cx - totalW * 0.5f), 142);
+    g.drawSingleLineText (numberText, juce::roundToInt (cx - totalW * 0.5f), 114);
     g.setFont (VoidGUI::font (300, 27.0f));
     g.setColour (VoidGUI::textDim);
-    g.drawSingleLineText (" s", juce::roundToInt (cx - totalW * 0.5f + numW), 142);
+    g.drawSingleLineText (" s", juce::roundToInt (cx - totalW * 0.5f + numW), 114);
 
     // ---- Decay waveform (mirrored bars + two envelope curves)
     const float baseY = 205.0f;
@@ -1171,6 +1171,12 @@ void VoidChamberReverbAudioProcessorEditor::updateCachedTexts()
 
 void VoidChamberReverbAudioProcessorEditor::paintPanels (juce::Graphics& g)
 {
+    {
+        juce::Graphics::ScopedSaveState save (g);
+        g.reduceClipRegion (550, 510, 436, 210);
+        g.setColour (juce::Colour (0xff080a0d).withAlpha (0.95f));
+        g.fillEllipse (550.0f, 510.0f, 436.0f, 436.0f);
+    }
     VoidGUI::drawPanel (g, dr (42.0f, 548.0f, 474.0f, 194.0f), 17.0f, 0.70f);
     VoidGUI::drawPanel (g, dr (1024.0f, 548.0f, 470.0f, 194.0f), 17.0f, 0.70f);
     VoidGUI::drawPanel (g, dr (30.0f, 750.0f, 540.0f, 220.0f), 17.0f, 0.72f);
@@ -1292,14 +1298,6 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
         legendWidth += dot + dotGap + labelWidths[i];
     }
     const float panelRight = 1000.0f;
-    // Measure the tracked title so the legend never overlaps it.
-    const auto titleFont = VoidGUI::font (400, 14.0f);
-    float titleWidth = 0.0f;
-    const juce::String titleText = "FREQUENCY DECAY";
-    for (int i = 0; i < titleText.length(); ++i)
-        titleWidth += VoidGUI::textWidth (titleFont, titleText.substring (i, i + 1)) + 4.2f;
-    titleWidth -= 4.2f;
-    juce::ignoreUnused (titleWidth);
     float legendX = panelRight - legendWidth;
     for (int i = 0; i < 3; ++i)
     {

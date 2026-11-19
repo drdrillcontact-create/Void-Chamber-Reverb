@@ -57,9 +57,9 @@ jobs:
           echo "header: $hdr"
           if [ -n "$hdr" ]; then
             grep -o -E '(Raleway[A-Za-z0-9_]*|voidbackground_jpg|space[A-Za-z0-9_]*jpg)' "$hdr" | sort | uniq -c | while IFS= read -r line; do
-              echo "::notice::sym $line"
+              echo "sym $line"
             done
-            echo "::notice::total lines $(wc -l < "$hdr")"
+            echo "total lines $(wc -l < "$hdr")"
           else
             echo "::error::BinaryData.h not generated"
           fi
@@ -98,7 +98,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
-            sips -s format jpeg -s formatOptions 65 --resampleWidth 1200 build/editor-snapshot.png --out build/editor-review.jpg >/dev/null
+            sips -s format jpeg -s formatOptions 40 --resampleWidth 900 build/editor-snapshot.png --out build/editor-review.jpg >/dev/null
           else
             powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile("build/editor-snapshot.png"); $img.Save("build/editor-review.jpg", [System.Drawing.Imaging.ImageFormat]::Jpeg); $img.Dispose()'
           fi
