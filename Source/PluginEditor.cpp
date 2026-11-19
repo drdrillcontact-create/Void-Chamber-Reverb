@@ -178,7 +178,7 @@ void DecayArcSlider::paint (juce::Graphics& g)
     g.strokePath (track, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // ---- Value arc: cyan -> white -> magenta neon tube
-    const float norm = static_cast<float> (valueToProportionOfLength ((double) getValue()));
+    const float norm = static_cast<float> ((getValue() - getMinimum()) / (getMaximum() - getMinimum()));
     const float aNow = a0 + (a1 - a0) * norm;
     if (norm > 0.002f)
     {
@@ -377,8 +377,8 @@ void AdvancedCell::paint (juce::Graphics& g)
 
     // Cell plate
     juce::Path plate;
-    plate.addRoundedRectangle (iconBox, square * 0.22f);
-    g.setColour (juce::Colour (0xff11141b).withAlpha (hovered ? 0.95f : 0.82f));
+    plate.addRoundedRectangle (iconBox, square * 0.12f);
+    g.setColour (juce::Colour (0xff0a0c10).withAlpha (hovered ? 0.95f : 0.82f));
     g.fillPath (plate);
     g.setColour (hovered ? VoidGUI::panelInner : VoidGUI::panelStroke);
     g.strokePath (plate, juce::PathStrokeType (hovered ? 1.6f : 1.1f));
@@ -402,7 +402,7 @@ void AdvancedCell::paintIcon (juce::Graphics& g, juce::Rectangle<float> r)
     const float s = r.getWidth();
     const juce::Colour ic = VoidGUI::white.withAlpha (0.92f);
     g.setColour (ic);
-    const float lw = juce::jmax (1.4f, s * 0.055f);
+    const float lw = juce::jmax (0.8f, s * 0.022f);
 
     switch (icon)
     {
@@ -433,8 +433,8 @@ void AdvancedCell::paintIcon (juce::Graphics& g, juce::Rectangle<float> r)
             leftArrow.addTriangle (r.getX() + pad - 0.5f, cy, r.getX() + pad + s * 0.22f, cy - s * 0.17f, r.getX() + pad + s * 0.22f, cy + s * 0.17f);
             juce::Path rightArrow;
             rightArrow.addTriangle (r.getRight() - pad + 0.5f, cy, r.getRight() - pad - s * 0.22f, cy - s * 0.17f, r.getRight() - pad - s * 0.22f, cy + s * 0.17f);
-            g.fillPath (leftArrow);
-            g.fillPath (rightArrow);
+            g.strokePath (leftArrow, juce::PathStrokeType (lw));
+            g.strokePath (rightArrow, juce::PathStrokeType (lw));
             break;
         }
         case Icon::air:
@@ -452,7 +452,7 @@ void AdvancedCell::paintIcon (juce::Graphics& g, juce::Rectangle<float> r)
             head.lineTo (tip.x - s * 0.17f, tip.y - s * 0.03f);
             head.lineTo (tip.x - s * 0.02f, tip.y - s * 0.17f);
             head.closeSubPath();
-            g.fillPath (head);
+            g.strokePath (head, juce::PathStrokeType (lw));
             g.fillEllipse (cx - lw * 0.6f, cy - lw * 0.6f, lw * 1.2f, lw * 1.2f);
             break;
         }
@@ -1204,21 +1204,7 @@ void VoidChamberReverbAudioProcessorEditor::paintFrame (juce::Graphics& g)
     g.setGradientFill (sheen);
     g.drawLine (60.0f, 12.0f, designW - 60.0f, 12.0f, 1.2f);
 
-    // Corner screws
-    const float screwR = 5.2f;
-    const juce::Point<float> screws[4] = { { 24.0f, 24.0f }, { designW - 24.0f, 24.0f },
-                                           { 24.0f, designH - 24.0f }, { designW - 24.0f, designH - 24.0f } };
-    for (const auto& screw : screws)
-    {
-        juce::ColourGradient sg (juce::Colour (0xff4a505e), screw.x - screwR, screw.y - screwR,
-                                 juce::Colour (0xff14161c), screw.x + screwR, screw.y + screwR, true);
-        g.setGradientFill (sg);
-        g.fillEllipse (screw.x - screwR, screw.y - screwR, screwR * 2.0f, screwR * 2.0f);
-        g.setColour (juce::Colours::black.withAlpha (0.6f));
-        g.drawEllipse (screw.x - screwR, screw.y - screwR, screwR * 2.0f, screwR * 2.0f, 1.0f);
-        g.drawLine (screw.x - screwR * 0.62f, screw.y + screwR * 0.62f,
-                    screw.x + screwR * 0.62f, screw.y - screwR * 0.62f, 1.2f);
-    }
+
 }
 
 void VoidChamberReverbAudioProcessorEditor::paintHeader (juce::Graphics& g)

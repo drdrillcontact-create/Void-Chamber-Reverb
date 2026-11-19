@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
             || image.getPixelAt (image.getWidth() - edge - 1, y) == backgroundColour)
             return 3;
 
-        const juce::File base (juce::String (argv[1]));
+        const juce::File base { juce::String (argv[1]) };
         const auto out = index == 0 ? base : base.getSiblingFile (
             base.getFileNameWithoutExtension() + "-" + juce::String (sizes[index].x)
             + "x" + juce::String (sizes[index].y) + ".png");
