@@ -51,12 +51,25 @@ public:
     float getInputLevel() const noexcept { return inputLevel.load(std::memory_order_relaxed); }
     float getOutputLevel() const noexcept { return outputLevel.load(std::memory_order_relaxed); }
 
-    // Factory presets (also exposed as host programs)
-    static constexpr int numPresets = 6;
+    // --- Factory presets ---------------------------------------------------------
+    // 50 presets in 5 categories x 10, ordered the same as the space-type orbs:
+    // Void (0-9), Hall (10-19), Plate (20-29), Cavern (30-39), Ambient (40-49).
+    static constexpr int numPresets = 50;
+    static constexpr int presetsPerCategory = 10;
+    static constexpr int numCategories = 5;
+
     int getNumPresets() const noexcept { return numPresets; }
     int getCurrentPresetIndex() const noexcept { return currentPresetIndex.load(std::memory_order_relaxed); }
     juce::String getCurrentPresetName() const;
+    juce::String getCurrentCategoryName() const;
+
+    static juce::String getPresetCategoryName(int categoryIndex);
+    static juce::String getPresetName(int index);
+    static int getPresetCategoryIndex(int index) noexcept { return juce::jlimit(0, numCategories - 1, index / presetsPerCategory); }
+
     void loadPreset(int index);
+    void loadPreviousPreset();
+    void loadNextPreset();
 
     // Parameter IDs
     static constexpr char sizeID[]        = "size";

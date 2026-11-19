@@ -18,7 +18,13 @@ juce_add_binary_data(VoidChamberAssets
         Assets/space-hall.jpg
         Assets/space-plate.jpg
         Assets/space-cavern.jpg
-        Assets/space-ambient.jpg)
+        Assets/space-ambient.jpg
+        Assets/fonts/Raleway-200.ttf
+        Assets/fonts/Raleway-300.ttf
+        Assets/fonts/Raleway-400.ttf
+        Assets/fonts/Raleway-500.ttf
+        Assets/fonts/Raleway-600.ttf
+        Assets/fonts/Raleway-700.ttf)
 
 juce_add_plugin(VoidChamberReverb
     PRODUCT_NAME "Void Chamber Reverb"
