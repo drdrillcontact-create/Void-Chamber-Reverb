@@ -23,6 +23,11 @@ LevelMeter::LevelMeter()
     setInterceptsMouseClicks (false, false);
 }
 
+PinkLevelMeter::PinkLevelMeter()
+{
+    setInterceptsMouseClicks (false, false);
+}
+
 void LevelMeter::setLevel (float linearLevel)
 {
     const float target = juce::jlimit (0.0f, 1.0f, linearLevel);
@@ -50,6 +55,16 @@ void LevelMeter::update (float dt)
 }
 
 void LevelMeter::paint (juce::Graphics& g)
+{
+    paintMeter (g, false);
+}
+
+void PinkLevelMeter::paint (juce::Graphics& g)
+{
+    paintMeter (g, true);
+}
+
+void LevelMeter::paintMeter (juce::Graphics& g, bool pink)
 {
     const auto full = getLocalBounds().toFloat();
     const float trackW = juce::jmin (22.0f, full.getWidth() * 0.24f);
@@ -83,12 +98,14 @@ void LevelMeter::paint (juce::Graphics& g)
     {
         const auto fillRect = juce::Rectangle<float> (track.getX() + 2.0f, track.getBottom() - 2.0f - fillH,
                                                       track.getWidth() - 4.0f, fillH).toFloat();
-        g.setColour (juce::Colour (0xff0e3a45)); // deep base glow
+        g.setColour (pink ? juce::Colour (0xff3a0f26) : juce::Colour (0xff0e3a45)); // deep base glow
         g.fillRect (track.getX() + 2.0f, track.getY() + 2.0f, track.getWidth() - 4.0f, track.getHeight() - 4.0f);
 
-        juce::ColourGradient grad (juce::Colour (0xff0a7d94), fillRect.getX(), fillRect.getBottom(),
-                                   VoidGUI::cyanHot, fillRect.getX(), fillRect.getY(), false);
-        grad.addColour (0.55, VoidGUI::cyan);
+        juce::ColourGradient grad (pink ? juce::Colour (0xff94184f) : juce::Colour (0xff0a7d94),
+                                   fillRect.getX(), fillRect.getBottom(),
+                                   pink ? VoidGUI::pinkHot : VoidGUI::cyanHot,
+                                   fillRect.getX(), fillRect.getY(), false);
+        grad.addColour (0.55, pink ? VoidGUI::pink : VoidGUI::cyan);
         g.setGradientFill (grad);
         juce::Path fillPath;
         fillPath.addRoundedRectangle (fillRect, trackW * 0.22f);
@@ -104,7 +121,8 @@ void LevelMeter::paint (juce::Graphics& g)
     if (peak > 0.005f)
     {
         const float py = track.getBottom() - 2.0f - peak * (track.getHeight() - 4.0f);
-        g.setColour (peak > 0.96f ? juce::Colour (0xffff4d5e) : VoidGUI::cyanHot.withAlpha (0.95f));
+        g.setColour (peak > 0.96f ? juce::Colour (0xffff4d5e)
+                                  : (pink ? VoidGUI::pinkHot : VoidGUI::cyanHot).withAlpha (0.95f));
         g.drawLine (track.getX() + 2.0f, py, track.getRight() - 2.0f, py, 2.0f);
     }
 
@@ -194,7 +212,7 @@ void DecayArcSlider::paint (juce::Graphics& g)
 
     // ---- Labels
     VoidGUI::drawTrackedText (g, "DECAY TIME", { cx - 130.0f, 56.0f, 260.0f, 20.0f }, 5.5f,
-                              VoidGUI::font (400, 15.0f), VoidGUI::textDim);
+                              VoidGUI::font (400, 15.0f), juce::Colour (0xffcdd2de));
 
     const auto seconds = (float) getValue();
     const auto numberText = seconds < 10.0f ? juce::String (seconds, 1) : juce::String (juce::roundToInt (seconds));
@@ -252,7 +270,7 @@ void DecayArcSlider::paint (juce::Graphics& g)
 
     // ---- Range captions
     g.setFont (VoidGUI::font (400, 14.0f));
-    g.setColour (VoidGUI::textDim);
+    g.setColour (juce::Colour (0xffb9bfcf));
     g.drawSingleLineText ("0.1 s", juce::roundToInt (14.0f), 213);
     g.drawSingleLineText ("20 s", juce::roundToInt (arcLen - 14.0f - VoidGUI::textWidth (g.getCurrentFont(), "20 s")), 213);
 }
@@ -598,9 +616,10 @@ void FrequencyDecayGraph::paint (juce::Graphics& g)
         const float t = (std::log10 (freq) - std::log10 (20.0f)) / (std::log10 (20000.0f) - std::log10 (20.0f));
         return left + t * (right - left);
     };
-    // 0 dB at the top of the graph, ~30 dB of range.
-    const float pxPerDb = height / 30.0f;
-    const auto lossToY = [&] (float db) { return top + juce::jlimit (0.0f, 30.0f, db) * pxPerDb; };
+    // 0 dB at the top of the graph; 45 dB of headroom so the high band
+    // approaches but never clamps flat at the floor.
+    const float pxPerDb = height / 50.0f;
+    const auto lossToY = [&] (float db) { return top + juce::jlimit (0.0f, 50.0f, db) * pxPerDb; };
 
     // Grid: verticals + one horizontal midline
     g.setColour (juce::Colours::white.withAlpha (0.055f));
@@ -635,6 +654,13 @@ void FrequencyDecayGraph::paint (juce::Graphics& g)
             const float db = band.slope * octaves;
             const float x = freqToX (f);
             const float y = lossToY (db);
+            if (db > 50.0f)
+            {
+                // Terminate at the floor instead of drawing a clamped flat tail.
+                path.lineTo (x, bottom + 1.0f);
+                fill.lineTo (x, bottom + 1.0f);
+                break;
+            }
             if (i == 0) { path.startNewSubPath (x, y); fill.startNewSubPath (x, y); }
             else        { path.lineTo (x, y);          fill.lineTo (x, y); }
         }
@@ -1221,7 +1247,7 @@ void VoidChamberReverbAudioProcessorEditor::paintHeader (juce::Graphics& g)
     const juce::String caption[4] = { "INFINITE", "SPACES.", "REAL", "EMOTIONS" };
     for (int i = 0; i < 4; ++i)
         VoidGUI::drawTrackedText (g, caption[i], dr (1216.0f, 168.0f + static_cast<float> (i) * 34.0f, 150.0f, 20.0f), 4.4f,
-                                  VoidGUI::font (300, 15.0f), juce::Colour (0xbcc1cd),
+                                  VoidGUI::font (300, 15.0f), juce::Colour (0xffbcc1cd),
                                   juce::Justification::centredRight);
 }
 
@@ -1262,26 +1288,43 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
     VoidGUI::drawTrackedText (g, "OUTPUT", dr (1390.0f, 148.0f, 100.0f, 20.0f), 5.0f, VoidGUI::font (400, 14.0f), VoidGUI::textDim);
     g.setFont (valueFont);
     g.setColour (VoidGUI::white);
-    g.drawText (mixText, dr (1392.0f, 570.0f, 96.0f, 24.0f), juce::Justification::centred);
+    g.drawText (mixText, dr (1392.0f, 544.0f, 96.0f, 22.0f), juce::Justification::centred);
 
     // Bottom panel titles
     VoidGUI::drawTrackedText (g, "SPACE TYPE",     dr (56.0f, 766.0f, 260.0f, 18.0f), 4.2f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
     VoidGUI::drawTrackedText (g, "FREQUENCY DECAY", dr (600.0f, 766.0f, 280.0f, 18.0f), 4.2f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
     VoidGUI::drawTrackedText (g, "ADVANCED",       dr (1042.0f, 766.0f, 220.0f, 18.0f), 4.2f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
 
-    // FREQUENCY DECAY legend
-    const struct { juce::Colour c; const char* label; float x; } legend[3] = {
-        { VoidGUI::pink,   "LOW",  772.0f },
-        { VoidGUI::purple, "MID",  856.0f },
-        { VoidGUI::cyan,   "HIGH", 946.0f },
-    };
-    g.setFont (VoidGUI::font (400, 12.5f));
-    for (const auto& entry : legend)
+    // FREQUENCY DECAY legend — right-justified against the panel edge and
+    // pushed clear of the title by measuring both.
+    const auto legendFont = VoidGUI::font (400, 12.5f);
+    const char* legendLabels[3] = { "LOW", "MID", "HIGH" };
+    const juce::Colour legendColours[3] = { VoidGUI::pink, VoidGUI::purple, VoidGUI::cyan };
+    const float dot = 9.5f, dotGap = 6.0f, itemGap = 20.0f;
+    float legendWidth = itemGap * 2.0f;
+    float labelWidths[3];
+    for (int i = 0; i < 3; ++i)
     {
-        g.setColour (entry.c);
-        g.fillEllipse (entry.x, 770.0f, 9.5f, 9.5f);
+        labelWidths[i] = VoidGUI::textWidth (legendFont, legendLabels[i]);
+        legendWidth += dot + dotGap + labelWidths[i];
+    }
+    const float panelRight = 1000.0f;
+    // Measure the tracked title so the legend never overlaps it.
+    const auto titleFont = VoidGUI::font (400, 14.0f);
+    float titleWidth = 0.0f;
+    const juce::String titleText = "FREQUENCY DECAY";
+    for (int i = 0; i < titleText.length(); ++i)
+        titleWidth += VoidGUI::textWidth (titleFont, titleText.substring (i, i + 1)) + 4.2f;
+    titleWidth -= 4.2f;
+    float legendX = juce::jmax (panelRight - legendWidth, 600.0f + titleWidth + 22.0f);
+    for (int i = 0; i < 3; ++i)
+    {
+        g.setColour (legendColours[i]);
+        g.fillEllipse (legendX, 770.0f, dot, dot);
         g.setColour (VoidGUI::textDim);
-        g.drawSingleLineText (entry.label, juce::roundToInt (entry.x + 15.0f), 780);
+        g.setFont (legendFont);
+        g.drawSingleLineText (legendLabels[i], juce::roundToInt (legendX + dot + dotGap), 780);
+        legendX += dot + dotGap + labelWidths[i] + itemGap;
     }
 
     g.restoreState();
@@ -1327,7 +1370,7 @@ void VoidChamberReverbAudioProcessorEditor::layoutContents (float scale, float o
     place (monoButton,  48.0f, 446.0f, 128.0f, 40.0f);
     place (stereoButton, 48.0f, 490.0f, 128.0f, 40.0f);
     place (outputMeter, 1390.0f, 168.0f, 100.0f, 244.0f);
-    place (mixSlider,   1392.0f, 466.0f, 96.0f, 96.0f);
+    place (mixSlider,   1392.0f, 442.0f, 96.0f, 96.0f);
 
     // Knob row
     place (sizeSlider,       110.0f, 601.0f, 124.0f, 124.0f);

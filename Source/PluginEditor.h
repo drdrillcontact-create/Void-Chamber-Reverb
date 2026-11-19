@@ -18,6 +18,20 @@ private:
     float peak = 0.0f;
     float peakHoldSeconds = 0.0f;
     float clip = 0.0f;
+
+protected:
+    // Shared renderer. pink selects the magenta accent used for the output
+    // meter while the input meter stays cyan. Adds no state to the class.
+    void paintMeter (juce::Graphics&, bool pink);
+};
+
+// Magenta-accented output meter. Deliberately stateless: same size and
+// layout as LevelMeter, only a different paint() entry point.
+class PinkLevelMeter : public LevelMeter
+{
+public:
+    PinkLevelMeter();
+    void paint (juce::Graphics&) override;
 };
 
 //==============================================================================
@@ -176,8 +190,11 @@ public:
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
 
-private:
+    // Called once per refresh tick; public so headless renders (snapshot
+    // test) can settle the dynamic visual state deterministically.
     void timerCallback() override;
+
+private:
     void layoutContents (float scale, float offsetX, float offsetY);
     void updateCachedTexts();
     void paintSpacePanel (juce::Graphics&);
@@ -208,7 +225,8 @@ private:
                                                      decayAttachment, dampingAttachment,
                                                      modulationAttachment, mixAttachment;
 
-    LevelMeter inputMeter, outputMeter;
+    LevelMeter inputMeter;
+    PinkLevelMeter outputMeter;
     juce::TextButton monoButton { "MONO" }, stereoButton { "STEREO" };
     OrbButton orbs[5];
     FrequencyDecayGraph freqGraph;
