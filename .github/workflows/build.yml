@@ -94,27 +94,6 @@ jobs:
       - name: Run DSP and editor-snapshot tests
         run: ctest --test-dir build -C Release --output-on-failure
 
-      - name: Prepare temporary visual review image
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            sips -s format jpeg -s formatOptions 40 --resampleWidth 900 build/editor-snapshot.png --out build/editor-review.jpg >/dev/null
-          else
-            powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile("build/editor-snapshot.png"); $img.Save("build/editor-review.jpg", [System.Drawing.Imaging.ImageFormat]::Jpeg); $img.Dispose()'
-          fi
-      - name: Visual review part 1
-        run: python tools/ci-visual-review.py 0
-      - name: Visual review part 2
-        run: python tools/ci-visual-review.py 1
-      - name: Visual review part 3
-        run: python tools/ci-visual-review.py 2
-      - name: Visual review part 4
-        run: python tools/ci-visual-review.py 3
-      - name: Visual review part 5
-        run: python tools/ci-visual-review.py 4
-      - name: Visual review part 6
-        run: python tools/ci-visual-review.py 5
-
       - name: Upload editor snapshot
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
