@@ -1117,16 +1117,16 @@ namespace
 {
     void drawLogoBars (juce::Graphics& g, juce::Rectangle<float> area)
     {
-        const float barW = 5.0f, gap = 5.0f;
-        const float heights[5] = { 20.0f, 38.0f, 26.0f, 46.0f, 32.0f };
-        const juce::Colour colours[5] = { VoidGUI::white, VoidGUI::cyan, VoidGUI::white, VoidGUI::cyan, VoidGUI::white };
+        const float barW = 1.0f, gap = 5.0f;
+        const float heights[5] = { 7.0f, 16.0f, 28.0f, 16.0f, 7.0f };
+        const juce::Colour colours[5] = { VoidGUI::white, VoidGUI::white, VoidGUI::white, VoidGUI::white, VoidGUI::white };
         float x = area.getX();
         for (int i = 0; i < 5; ++i)
         {
             const float h = heights[i];
             const auto bar = juce::Rectangle<float> (x, area.getCentreY() - h * 0.5f, barW, h);
             g.setColour (colours[i].withAlpha (i == 1 || i == 3 ? 1.0f : 0.85f));
-            g.fillRoundedRectangle (bar, 2.5f);
+            g.fillRect (bar);
             x += barW + gap;
         }
     }

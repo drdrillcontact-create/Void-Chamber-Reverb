@@ -287,8 +287,8 @@ public:
     {
         const auto b = button.getLocalBounds().toFloat();
         VoidGUI::drawTrackedText (g, button.getButtonText(),
-                                  b.reduced (56.0f, 0.0f), 0.6f,
-                                  VoidGUI::font (500, 21.0f),
+                                  b.reduced (12.0f, 0.0f), 0.3f,
+                                  VoidGUI::font (400, 16.0f),
                                   VoidGUI::white,
                                   juce::Justification::centred);
     }
