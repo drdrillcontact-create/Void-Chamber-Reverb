@@ -848,11 +848,6 @@ void PresetBrowser::mouseDown (const juce::MouseEvent& e)
 
 bool PresetBrowser::keyPressed (const juce::KeyPress& key)
 {
-    if (key.getTextCharacter() == 'm' || key.getTextCharacter() == 'M')
-    {
-        motionButton.onClick();
-        return true;
-    }
     if (key == juce::KeyPress::escapeKey)
     {
         setVisible (false);
