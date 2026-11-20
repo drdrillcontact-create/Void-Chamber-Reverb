@@ -175,6 +175,67 @@ int main(int argc, char* argv[])
 
     for (int tick = 0; tick < 12; ++tick)
         static_cast<VoidChamberReverbAudioProcessorEditor*>(editor.get())->timerCallback();
+    // Regression: all five spaces must visibly change at a quiet input level.
+    // This checks rendered pixels, not merely timer state or a successful build.
+    {
+        auto* ui = static_cast<VoidChamberReverbAudioProcessorEditor*>(editor.get());
+        editor->setSize (1536, 1024);
+        const auto renderScene = [&]()
+        {
+            juce::Image frame (juce::Image::ARGB, 1536, 1024, true);
+            { juce::Graphics graphics (frame); editor->paintEntireComponent (graphics, true); }
+            return frame;
+        };
+        const auto advance = [&](int ticks)
+        {
+            juce::AudioBuffer<float> signal (2, 512);
+            juce::MidiBuffer midi;
+            for (int tick = 0; tick < ticks; ++tick)
+            {
+                for (int n = 0; n < 512; ++n)
+                    for (int ch = 0; ch < 2; ++ch)
+                        signal.setSample (ch,n,0.01f * std::sin (float(n) * 0.07f));
+                processor.processBlock (signal, midi);
+                ui->timerCallback();
+            }
+        };
+        auto* space = state.getParameter (VoidChamberReverbAudioProcessor::spaceTypeID);
+        for (int mode = 0; mode < 5; ++mode)
+        {
+            space->setValueNotifyingHost (space->convertTo0to1 (float(mode)));
+            advance (100);
+            const auto first = renderScene();
+            advance (45);
+            const auto second = renderScene();
+            int changed = 0;
+            for (int y = 185; y < 510; y += 2)
+                for (int x = 280; x < 1280; x += 2)
+                {
+                    const auto a = first.getPixelAt(x,y), b = second.getPixelAt(x,y);
+                    if (std::abs(int(a.getRed())-int(b.getRed()))
+                        + std::abs(int(a.getGreen())-int(b.getGreen()))
+                        + std::abs(int(a.getBlue())-int(b.getBlue())) > 6) ++changed;
+                }
+            std::fprintf (stderr, "Motion space %d: %d visibly changed scene samples\n", mode, changed);
+            if (changed < 80) return failed (13, __LINE__);
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                const juce::File base { juce::String (argv[1]) };
+                const auto file = base.getSiblingFile ("editor-snapshot-motion-" + juce::String(mode)
+                                                       + "-" + juce::String(frame) + ".png");
+                file.deleteFile(); juce::FileOutputStream output(file);
+                if (!juce::PNGImageFormat().writeImageToStream(frame == 0 ? first : second, output))
+                    return failed (1, __LINE__);
+            }
+        }
+        ui->keyPressed (juce::KeyPress ('m'));
+        const auto frozen = renderScene(); advance(45); const auto still = renderScene();
+        for (int y = 190; y < 440; y += 4)
+            for (int x = 620; x < 910; x += 4)
+                if (frozen.getPixelAt(x,y) != still.getPixelAt(x,y)) return failed (14, __LINE__);
+        ui->keyPressed (juce::KeyPress ('m'));
+        space->setValueNotifyingHost (space->convertTo0to1(initialSpace));
+    }
     // Include host-driven off-ratio sizes: some DAWs bypass the constrainer.
     const juce::Point<int> sizes[] = { {1536, 1024}, {960, 640}, {1200, 900}, {1800, 900} };
     for (int index = 0; index < 4; ++index)

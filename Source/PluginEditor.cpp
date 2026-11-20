@@ -1222,8 +1222,12 @@ void VoidChamberReverbAudioProcessorEditor::timerCallback()
     const int selectedSpace = juce::roundToInt (state.getRawParameterValue (VoidChamberReverbAudioProcessor::spaceTypeID)->load());
     const float targetEnergy = juce::jlimit (0.0f, 1.0f,
         processor.getInputLevel() * 0.3f + processor.getWetEnergy() * 3.0f);
-    motionEnergy += (targetEnergy - motionEnergy) * (targetEnergy > motionEnergy ? 0.35f : 0.045f);
-    motionTime += (0.15f + motionEnergy) / 30.0f;
+    // Perceptual visual envelope: linear audio levels made quiet material
+    // practically invisible. Keep silence dark, but expand normal -40..-12 dB signals.
+    const float visualTarget = targetEnergy < 0.0001f ? 0.0f
+        : juce::jlimit (0.0f, 1.0f, std::pow (targetEnergy, 0.35f) * 1.65f);
+    motionEnergy += (visualTarget - motionEnergy) * (visualTarget > motionEnergy ? 0.35f : 0.045f);
+    motionTime += (0.65f + motionEnergy * 1.4f) / 30.0f;
     for (int i = 0; i < 5; ++i)
     {
         orbs[i].setSelected (i == selectedSpace);
@@ -1278,6 +1282,22 @@ void VoidChamberReverbAudioProcessorEditor::paintLivingScene (juce::Graphics& g)
         const float energy = motionEnergy * motionWeights[type];
         if (energy < 0.002f) continue;
         const float t = motionTime;
+        // Animate the original internal nebula, not just barely visible lines.
+        // The glass silhouette stays fixed by the circular clip; crossfade
+        // the transformed interior over the source to avoid a moving cut edge.
+        if (type != 3 && background.isValid())
+        {
+            juce::Graphics::ScopedSaveState texture (g);
+            juce::Path interior;
+            interior.addEllipse (cx-116.0f, cy-116.0f, 232.0f, 232.0f);
+            g.reduceClipRegion (interior);
+            g.setOpacity (energy * 0.65f);
+            const float rotation = std::sin(t * 0.48f) * (type == 0 ? 0.20f : 0.09f);
+            const float zoom = 1.07f + 0.025f * std::sin(t * 0.8f);
+            g.addTransform (juce::AffineTransform::translation(-cx,-cy)
+                .scaled(zoom).rotated(rotation).translated(cx,cy));
+            g.drawImage (background, juce::Rectangle<float>(0,0,designW,designH));
+        }
         if (type == 0 || type == 2 || type == 4)
         {
             juce::Graphics::ScopedSaveState inside (g);
@@ -1306,7 +1326,7 @@ void VoidChamberReverbAudioProcessorEditor::paintLivingScene (juce::Graphics& g)
                     }
                     if (j == 0) p.startNewSubPath(x,y); else p.lineTo(x,y);
                 }
-                stroke(p,energy*(type==4 ? 0.13f : 0.27f),type==4 ? 2.0f : 1.2f,type==4 && k%3!=0);
+                stroke(p,energy*(type==4 ? 0.30f : 0.65f),type==4 ? 2.0f : 1.2f,type==4 && k%3!=0);
             }
             if (type == 0)
             {
@@ -1322,7 +1342,7 @@ void VoidChamberReverbAudioProcessorEditor::paintLivingScene (juce::Graphics& g)
                 const float phase = std::fmod(t*.2f+k/7.0f,1.0f);
                 const float rx = 80+phase*450, ry=4+phase*37;
                 juce::Path ring; ring.addEllipse(cx-rx,465-ry,rx*2,ry*2);
-                stroke(ring,energy*(1-phase)*.28f,1.1f,k%2==0);
+                stroke(ring,energy*(1-phase)*.70f,1.1f,k%2==0);
             }
         }
         if (type == 1)
@@ -1330,11 +1350,11 @@ void VoidChamberReverbAudioProcessorEditor::paintLivingScene (juce::Graphics& g)
             for (float x : { 275.0f, 380.0f, 575.0f, 963.0f, 1169.0f, 1260.0f })
             {
                 juce::Path edge; edge.startNewSubPath(x,220); edge.lineTo(x,451);
-                stroke(edge,energy*.12f,1.4f,true);
+                stroke(edge,energy*.35f,1.8f,true);
             }
             for (float x : { 496.0f, 1040.0f })
             {
-                g.setGradientFill(juce::ColourGradient(pinkLight.withAlpha(energy*.22f),x,380,
+                g.setGradientFill(juce::ColourGradient(pinkLight.withAlpha(energy*.48f),x,380,
                     juce::Colours::transparentBlack,x+42,380,true));
                 g.fillEllipse(x-42,338,84,84);
             }
