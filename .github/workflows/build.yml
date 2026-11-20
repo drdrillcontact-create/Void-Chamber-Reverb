@@ -92,7 +92,20 @@ jobs:
           if-no-files-found: warn
 
       - name: Run DSP and editor-snapshot tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        shell: bash
+        run: |
+          set +e
+          ctest --test-dir build -C Release --output-on-failure > test-output.log 2>&1
+          result=$?
+          cat test-output.log
+          if [ "$result" -ne 0 ]; then
+            while IFS= read -r line; do
+              line=${line//%/%25}
+              line=${line//$'\r'/}
+              echo "::error::${line}"
+            done < test-output.log
+          fi
+          exit "$result"
 
       - name: Prepare opt-in visual review
         if: runner.os == 'macOS' && contains(github.event.head_commit.message, '[visual-review]')

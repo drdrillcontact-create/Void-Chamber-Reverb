@@ -42,7 +42,7 @@ void LevelMeter::setLevel (float linearLevel)
         peak = target;
         peakHoldSeconds = 1.1f;
     }
-    clip = target > 0.96f ? 1.0f : juce::jmax (0.0f, clip - 0.02f);
+    clip = linearLevel >= 1.0f ? 1.0f : juce::jmax (0.0f, clip - 0.02f);
 }
 
 void LevelMeter::update (float dt)
@@ -50,7 +50,7 @@ void LevelMeter::update (float dt)
     if (peakHoldSeconds > 0.0f)
         peakHoldSeconds -= dt;
     else
-        peak *= std::pow (10.0f, -1.6f * dt); // ~1.6 dB/s falloff
+        peak *= juce::Decibels::decibelsToGain (-12.0f * dt); // 12 dB/s after hold
     repaint();
 }
 
@@ -993,6 +993,7 @@ VoidChamberReverbAudioProcessorEditor::VoidChamberReverbAudioProcessorEditor (Vo
 
     updateCachedTexts();
     presetNameButton.setButtonText (presetNameText);
+        presetNameButton.setTooltip (presetNameText + " — Open preset library");
 
     setResizable (true, true);
     setResizeLimits (960, 640, 3072, 2048);
@@ -1049,6 +1050,7 @@ void VoidChamberReverbAudioProcessorEditor::updateCachedTexts()
     if (changed)
     {
         presetNameButton.setButtonText (presetNameText);
+        presetNameButton.setTooltip (presetNameText + " — Open preset library");
         repaint();
     }
 }

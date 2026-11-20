@@ -1,12 +1,22 @@
 // Headless render of the editor to a PNG so the layout can be inspected
 // without a display server. Usage: EditorSnapshotTest output.png
 #include <cmath>
+#include <cstdio>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+    int failed (int code, int line)
+    {
+        std::fprintf (stderr, "EditorSnapshotTest check %d failed at line %d\n", code, line);
+        return code;
+    }
+}
+
 int main(int argc, char* argv[])
 {
-    if (argc < 2) return 2;
+    if (argc < 2) return failed (2, __LINE__);
 
     // Required before touching any JUCE GUI code on every platform —
     // without it the graphics subsystem is not initialised.
@@ -16,7 +26,7 @@ int main(int argc, char* argv[])
     // Titanium face. Exercise both accents at minimum, middle and maximum.
     const auto face = juce::ImageCache::getFromMemory (
         BinaryData::titaniumknobbody_png, BinaryData::titaniumknobbody_pngSize);
-    if (! face.isValid()) return 4;
+    if (! face.isValid()) return failed (4, __LINE__);
     juce::Image knobSheet (juce::Image::ARGB, 600, 400, true);
     for (int row = 0; row < 2; ++row)
     {
@@ -42,32 +52,40 @@ int main(int argc, char* argv[])
             const float a = col == 0 ? -2.3561945f : 2.3561945f;
             const int x = juce::roundToInt (100.0f + 52.8f * std::sin (a));
             const int y = juce::roundToInt (100.0f - 52.8f * std::cos (a));
-            if (renders[col].getPixelAt (x, y) == renders[1].getPixelAt (x, y)) return 5;
+            if (renders[col].getPixelAt (x, y) == renders[1].getPixelAt (x, y)) return failed (5, __LINE__);
         }
         const auto arcPixel = renders[2].getPixelAt (41, 43);
         if (row == 0 ? arcPixel.getRed() <= arcPixel.getBlue()
-                     : arcPixel.getBlue() <= arcPixel.getRed()) return 6;
+                     : arcPixel.getBlue() <= arcPixel.getRed()) return failed (6, __LINE__);
     }
-    if (knobSheet.getPixelAt (100, 100).isTransparent()) return 7;
+    if (knobSheet.getPixelAt (100, 100).isTransparent()) return failed (7, __LINE__);
     {
         const juce::File base { juce::String (argv[1]) };
         const auto out = base.getSiblingFile ("editor-snapshot-knobs.png");
         out.deleteFile();
         juce::FileOutputStream stream (out);
-        if (stream.failedToOpen() || ! juce::PNGImageFormat().writeImageToStream (knobSheet, stream)) return 1;
+        if (stream.failedToOpen() || ! juce::PNGImageFormat().writeImageToStream (knobSheet, stream)) return failed (1, __LINE__);
     }
 
     // dB calibration used by both the fill and peak line must match the ticks.
     for (int db : { 0, -6, -12, -24, -48, -60 })
         if (std::abs (VoidGUI::meterPosition (juce::Decibels::decibelsToGain (static_cast<float> (db)))
-                      - (db + 60.0f) / 60.0f) > 0.0001f) return 8;
-    if (VoidGUI::meterPosition (0.0f) != 0.0f || VoidGUI::meterPosition (2.0f) != 1.0f) return 8;
+                      - (db + 60.0f) / 60.0f) > 0.0001f) return failed (8, __LINE__);
+    if (VoidGUI::meterPosition (0.0f) != 0.0f || VoidGUI::meterPosition (2.0f) != 1.0f) return failed (8, __LINE__);
 
     VoidChamberReverbAudioProcessor processor;
 
+    processor.loadPreset (10); // Real Astral Hall settings, not a mock preset label.
     // Feed a bright test tone through the effect so the meters show signal,
     // approximating a live host session rather than an idle plugin.
     processor.prepareToPlay(44100.0, 512);
+    {
+        juce::AudioBuffer<float> calibration (2, 512);
+        calibration.clear(); calibration.setSample (1, 100, 0.5f);
+        juce::MidiBuffer midi;
+        processor.processBlock (calibration, midi);
+        if (std::abs (processor.getInputLevel() - 0.5f) > 0.0001f) return failed (10, __LINE__);
+    }
     {
         juce::AudioBuffer<float> buffer(2, 512);
         juce::MidiBuffer midi;
@@ -81,7 +99,7 @@ int main(int argc, char* argv[])
                     const float s = static_cast<float>(0.55 * std::sin(twoPi * 220.0 * t)
                                                      + 0.30 * std::sin(twoPi * 1730.0 * t)
                                                      + (ch == 0 ? 1.0 : 0.8) * 0.18 * std::sin(twoPi * 61.0 * t));
-                    buffer.setSample(ch, i, s);
+                    buffer.setSample(ch, i, s * 0.25f);
                 }
             processor.processBlock(buffer, midi);
         }
@@ -102,7 +120,7 @@ int main(int argc, char* argv[])
             if (orbIndex == 3)
             {
                 orb->onClick();
-                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::spaceTypeID)->load() != 3.0f) return 9;
+                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::spaceTypeID)->load() != 3.0f) return failed (9, __LINE__);
             }
             ++orbIndex;
         }
@@ -111,12 +129,12 @@ int main(int argc, char* argv[])
             if (button->getButtonText() == "MONO")
             {
                 button->onClick(); monoFound = true;
-                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load() != 1.0f) return 9;
+                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load() != 1.0f) return failed (9, __LINE__);
             }
             else if (button->getButtonText() == "STEREO")
             {
                 button->onClick(); stereoFound = true;
-                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load() != 0.0f) return 9;
+                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load() != 0.0f) return failed (9, __LINE__);
             }
             else if (button->getButtonText() == processor.getCurrentPresetName())
                 button->onClick();
@@ -125,13 +143,15 @@ int main(int argc, char* argv[])
     for (int i = 0; i < editor->getNumChildComponents(); ++i)
         if (auto* browser = dynamic_cast<PresetBrowser*> (editor->getChildComponent (i)))
             presetOpened = browser->isVisible();
-    if (orbIndex != 5 || ! monoFound || ! stereoFound || ! presetOpened) return 9;
+    if (orbIndex != 5 || ! monoFound || ! stereoFound || ! presetOpened) return failed (9, __LINE__);
     editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
     for (const auto& restore : { std::make_pair (VoidChamberReverbAudioProcessor::spaceTypeID, initialSpace),
                                 std::make_pair (VoidChamberReverbAudioProcessor::channelModeID, initialMode) })
         if (auto* parameter = state.getParameter (restore.first))
             parameter->setValueNotifyingHost (parameter->convertTo0to1 (restore.second));
 
+    for (int tick = 0; tick < 12; ++tick)
+        static_cast<VoidChamberReverbAudioProcessorEditor*>(editor.get())->timerCallback();
     // Include host-driven off-ratio sizes: some DAWs bypass the constrainer.
     const juce::Point<int> sizes[] = { {1536, 1024}, {960, 640}, {1200, 900}, {1800, 900} };
     for (int index = 0; index < 4; ++index)
@@ -147,7 +167,7 @@ int main(int argc, char* argv[])
         const auto backgroundColour = image.getPixelAt (0, y);
         if (image.getPixelAt (edge, y) == backgroundColour
             || image.getPixelAt (image.getWidth() - edge - 1, y) == backgroundColour)
-            return 3;
+            return failed (3, __LINE__);
 
         const juce::File base { juce::String (argv[1]) };
         const auto out = index == 0 ? base : base.getSiblingFile (
@@ -156,7 +176,7 @@ int main(int argc, char* argv[])
         out.deleteFile();
         juce::FileOutputStream stream (out);
         if (stream.failedToOpen() || ! juce::PNGImageFormat().writeImageToStream (image, stream))
-            return 1;
+            return failed (1, __LINE__);
     }
     return 0;
 }

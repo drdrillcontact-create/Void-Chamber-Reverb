@@ -306,10 +306,9 @@ public:
                          bool, bool) override
     {
         const auto b = button.getLocalBounds().toFloat();
-        VoidGUI::drawTrackedText (g, button.getButtonText(),
-                                  b.reduced (12.0f, 0.0f), 0.3f,
-                                  VoidGUI::font (400, 21.0f),
-                                  VoidGUI::white,
-                                  juce::Justification::centred);
+        g.setFont (VoidGUI::font (400, 21.0f));
+        g.setColour (VoidGUI::white);
+        g.drawFittedText (button.getButtonText(), b.reduced (10.0f, 2.0f).toNearestInt(),
+                          juce::Justification::centred, 1, 0.65f);
     }
 };

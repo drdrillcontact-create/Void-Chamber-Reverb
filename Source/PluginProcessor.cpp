@@ -340,13 +340,12 @@ void VoidChamberReverbAudioProcessor::processBlock(juce::AudioBuffer<float>& buf
 
     const auto meterLevel = [&]
     {
-        float sum = 0.0f;
+        // Unboosted block sample peak, in linear full-scale units. Meter
+        // calibration must not include the old cosmetic 3x RMS multiplier.
+        float peak = 0.0f;
         for (int ch = 0; ch < numChannels; ++ch)
-        {
-            const auto rms = buffer.getRMSLevel(ch, 0, numSamples);
-            sum += rms * rms;
-        }
-        return juce::jlimit(0.0f, 1.0f, 3.0f * std::sqrt(sum / static_cast<float>(numChannels)));
+            peak = juce::jmax (peak, buffer.getMagnitude (ch, 0, numSamples));
+        return peak;
     };
 
     inputLevel.store(meterLevel(), std::memory_order_relaxed);
