@@ -228,12 +228,12 @@ int main(int argc, char* argv[])
                     return failed (1, __LINE__);
             }
         }
-        ui->keyPressed (juce::KeyPress ('m'));
+        ui->keyPressed (juce::KeyPress ('m', juce::ModifierKeys(), 'm'));
         const auto frozen = renderScene(); advance(45); const auto still = renderScene();
         for (int y = 190; y < 440; y += 4)
             for (int x = 620; x < 910; x += 4)
                 if (frozen.getPixelAt(x,y) != still.getPixelAt(x,y)) return failed (14, __LINE__);
-        ui->keyPressed (juce::KeyPress ('m'));
+        ui->keyPressed (juce::KeyPress ('m', juce::ModifierKeys(), 'm'));
         space->setValueNotifyingHost (space->convertTo0to1(initialSpace));
     }
     // Include host-driven off-ratio sizes: some DAWs bypass the constrainer.

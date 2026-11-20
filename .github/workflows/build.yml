@@ -103,7 +103,7 @@ jobs:
               line=${line//%/%25}
               line=${line//$'\r'/}
               echo "::error::${line}"
-            done < test-output.log
+            done < <(tail -n 8 test-output.log)
           fi
           exit "$result"
 
