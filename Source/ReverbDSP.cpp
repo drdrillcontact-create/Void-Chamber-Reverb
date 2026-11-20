@@ -189,6 +189,15 @@ void ReverbDSP::prepare (double newSampleRate)
         lfoPhase[i]   = static_cast<float> (i) * 1.7f + 0.4f;
     }
 
+    for (int i = 0; i < 3; ++i)
+    {
+        outputDiffL[i].prepare (24.0f, sampleRate);
+        outputDiffR[i].prepare (24.0f, sampleRate);
+        outputDiffL[i].setDelayMs (5.3f + i * 6.71f, sampleRate);
+        outputDiffR[i].setDelayMs (6.7f + i * 7.13f, sampleRate);
+    }
+    inputHPLeft.setHighpass (65.0f, sampleRate);
+    inputHPRight.setHighpass (65.0f, sampleRate);
     preDelaySamples.reset (sampleRate, 0.005);
     mixS.reset (sampleRate, 0.010);
     widthS.reset (sampleRate, 0.010);
@@ -222,6 +231,11 @@ void ReverbDSP::reset()
     for (auto& line : lines) line.reset();
     for (auto& lp : dampingLP) lp.reset();
     for (auto& hp : subsonicHP) hp.reset();
+    for (auto& ap : outputDiffL) ap.reset();
+    for (auto& ap : outputDiffR) ap.reset();
+    earlyLPLeft.reset(); earlyLPRight.reset();
+    inputHPLeft.reset(); inputHPRight.reset();
+    wetEnergy.store (0.0f, std::memory_order_relaxed);
     airShelfL.reset();
     airShelfR.reset();
 }
@@ -261,6 +275,8 @@ void ReverbDSP::configureSpace()
     }
     for (auto& n : subsonicHP)
         n.setHighpass (profiles[spaceType].hpHz, sampleRate);
+    earlyLPLeft.setLowpass (profiles[spaceType].erCutoffHz, sampleRate);
+    earlyLPRight.setLowpass (profiles[spaceType].erCutoffHz, sampleRate);
     updateLineFeedback();
 }
 
@@ -367,6 +383,7 @@ void ReverbDSP::process (juce::AudioBuffer<float>& buffer)
         return;
 
     const auto profile = profiles[spaceType];
+    double wetSquares = 0.0;
 
     // Early-reflection tap positions depend only on size; compute once per block.
     float erTapSamples[numERTaps];
@@ -398,8 +415,8 @@ void ReverbDSP::process (juce::AudioBuffer<float>& buffer)
 
         // ---- Pre-delay (stereo; mono mode feeds the average to both sides) -----
         const float monoSum = 0.5f * (inL + inR);
-        preDelayL.write (monoMode ? monoSum : inL);
-        preDelayR.write (monoMode ? monoSum : inR);
+        preDelayL.write (inputHPLeft.processHighpass (monoMode ? monoSum : inL));
+        preDelayR.write (inputHPRight.processHighpass (monoMode ? monoSum : inR));
         const float pd     = preDelaySamples.getNextValue();
         const float delayL = preDelayL.readInterpolated (pd);
         const float delayR = preDelayR.readInterpolated (pd);
@@ -426,11 +443,11 @@ void ReverbDSP::process (juce::AudioBuffer<float>& buffer)
             else              { erRight += erDelayR.readInterpolated (tapSamples) * g; }
         }
         const float erLp = profile.erGain;
-        er      *= erLp;
-        erRight *= erLp;
+        er = earlyLPLeft.processLowpass (er) * erLp;
+        erRight = earlyLPRight.processLowpass (erRight) * erLp;
 
         // ---- FDN core ------------------------------------------------------------
-        const float modDepth = profile.modDepth * (0.35f + 1.65f * modulationS.getNextValue());
+        const float modDepth = profile.modDepth * static_cast<float> (sampleRate / 44100.0) * (0.20f + 1.30f * modulationS.getNextValue());
         const float modRate  = profile.modRate;
         const float timeStep = 1.0f / static_cast<float> (sampleRate);
         float lineOut[numLines];
@@ -477,6 +494,14 @@ void ReverbDSP::process (juce::AudioBuffer<float>& buffer)
         float wetL = (lineOut[0] + lineOut[2] + lineOut[4] + lineOut[6]) * 0.5f + er * 0.9f;
         float wetR = (lineOut[1] + lineOut[3] + lineOut[5] + lineOut[7]) * 0.5f + erRight * 0.9f;
 
+        // Lossless allpass output diffusion raises echo density without
+        // extending the feedback loop or adding regenerative resonances.
+        for (int stage = 0; stage < 3; ++stage)
+        {
+            wetL = outputDiffL[stage].process (wetL, spaceType == 2 ? 0.62f : 0.48f);
+            wetR = outputDiffR[stage].process (wetR, spaceType == 2 ? 0.62f : 0.48f);
+        }
+
         // Mono mode: identical output in both channels.
         if (monoMode)
         {
@@ -501,6 +526,8 @@ void ReverbDSP::process (juce::AudioBuffer<float>& buffer)
             wetR = mid - side;
         }
 
+        wetSquares += 0.5 * (wetL * wetL + wetR * wetR);
+
         // Equal-power dry/wet (with exact endpoint snaps)
         const float m   = mixS.getNextValue();
         float dryG, wetG;
@@ -512,4 +539,5 @@ void ReverbDSP::process (juce::AudioBuffer<float>& buffer)
         if (stereo)
             audio[1][i] = inR * dryG + wetR * wetG;
     }
+    wetEnergy.store (static_cast<float> (std::sqrt (wetSquares / numSamples)), std::memory_order_relaxed);
 }

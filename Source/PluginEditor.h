@@ -209,6 +209,11 @@ private:
 
     // Assets
     juce::Image background;
+    void paintLivingScene (juce::Graphics&);
+    float motionTime = 0.0f, motionEnergy = 0.0f;
+    std::array<float, 5> motionWeights {{ 1, 0, 0, 0, 0 }};
+    bool motionEnabled = true;
+    juce::TextButton motionButton { "MOTION ON" };
     juce::Image orbImages[5];
 
     // Look & feel instances (shared per accent)

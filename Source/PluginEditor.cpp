@@ -848,6 +848,11 @@ void PresetBrowser::mouseDown (const juce::MouseEvent& e)
 
 bool PresetBrowser::keyPressed (const juce::KeyPress& key)
 {
+    if (key.getTextCharacter() == 'm' || key.getTextCharacter() == 'M')
+    {
+        motionButton.onClick();
+        return true;
+    }
     if (key == juce::KeyPress::escapeKey)
     {
         setVisible (false);
@@ -1003,6 +1008,14 @@ VoidChamberReverbAudioProcessorEditor::VoidChamberReverbAudioProcessorEditor (Vo
         constrainer->setFixedAspectRatio (designW / designH);
     setSize (1536, 1024);
 
+    addAndMakeVisible (motionButton);
+    motionButton.setTooltip ("Toggle audio-reactive scene animation (M)");
+    motionButton.onClick = [this]
+    {
+        motionEnabled = ! motionEnabled;
+        motionButton.setButtonText (motionEnabled ? "MOTION ON" : "MOTION OFF");
+        repaint();
+    };
     startTimerHz (30);
 }
 
@@ -1114,6 +1127,7 @@ void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
     g.addTransform (juce::AffineTransform::scale (getWidth() / designW, getHeight() / designH));
     if (background.isValid())
         g.drawImage (background, dr (0, 0, designW, designH));
+    paintLivingScene (g);
     paintPanels (g); paintFrame (g); paintHeader (g);
 
     const char* names[] = { "SIZE", "PRE DELAY", "DAMPING", "MODULATION" };
@@ -1152,6 +1166,10 @@ void VoidChamberReverbAudioProcessorEditor::resized()
     // rather than letterboxing; paint and hit targets share this transform.
     layoutContents (static_cast<float> (area.getWidth()) / designW, 0.0f, 0.0f);
 
+    motionButton.setBounds (juce::roundToInt (1370.0f * getWidth() / designW),
+                            juce::roundToInt (77.0f * getHeight() / designH),
+                            juce::roundToInt (123.0f * getWidth() / designW),
+                            juce::roundToInt (21.0f * getHeight() / designH));
     if (browser)
         browser->setBounds (area);
 }
@@ -1207,8 +1225,16 @@ void VoidChamberReverbAudioProcessorEditor::timerCallback()
     monoButton.setToggleState   (mode >= 0.5f, juce::dontSendNotification);
 
     const int selectedSpace = juce::roundToInt (state.getRawParameterValue (VoidChamberReverbAudioProcessor::spaceTypeID)->load());
+    const float targetEnergy = juce::jlimit (0.0f, 1.0f,
+        processor.getInputLevel() * 0.3f + processor.getWetEnergy() * 3.0f);
+    motionEnergy += (targetEnergy - motionEnergy) * (targetEnergy > motionEnergy ? 0.35f : 0.045f);
+    motionTime += (0.15f + motionEnergy) / 30.0f;
     for (int i = 0; i < 5; ++i)
+    {
         orbs[i].setSelected (i == selectedSpace);
+        motionWeights[i] += ((i == selectedSpace ? 1.0f : 0.0f) - motionWeights[i]) * 0.09f;
+    }
+    repaint();
 
     diffusionCell.syncFromParameter();
     widthCell.syncFromParameter();
@@ -1223,6 +1249,11 @@ void VoidChamberReverbAudioProcessorEditor::timerCallback()
 
 bool VoidChamberReverbAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
 {
+    if (key.getTextCharacter() == 'm' || key.getTextCharacter() == 'M')
+    {
+        motionButton.onClick();
+        return true;
+    }
     if (key == juce::KeyPress::escapeKey && browser != nullptr && browser->isVisible())
     {
         browser->setVisible (false);
@@ -1230,4 +1261,93 @@ bool VoidChamberReverbAudioProcessorEditor::keyPressed (const juce::KeyPress& ke
         return true;
     }
     return juce::AudioProcessorEditor::keyPressed (key);
+}
+
+// Procedural scene layers only: controls and static architecture remain intact.
+// All animation state lives on the message thread; audio publishes one atomic RMS.
+void VoidChamberReverbAudioProcessorEditor::paintLivingScene (juce::Graphics& g)
+{
+    if (! motionEnabled || motionEnergy < 0.001f) return;
+    juce::Graphics::ScopedSaveState saved (g);
+    g.reduceClipRegion (juce::Rectangle<int> (220, 165, 1090, 360));
+    const float cx = 768.0f, cy = 313.0f, radius = 130.0f;
+    const auto pinkLight = juce::Colour (0xffd795ed);
+    const auto cyanLight = juce::Colour (0xff8bd9eb);
+    auto stroke = [&] (juce::Path& path, float alpha, float width, bool cyan = false)
+    {
+        g.setColour ((cyan ? cyanLight : pinkLight).withAlpha (juce::jlimit (0.0f, 1.0f, alpha)));
+        g.strokePath (path, juce::PathStrokeType (width));
+    };
+    for (int type = 0; type < 5; ++type)
+    {
+        const float energy = motionEnergy * motionWeights[type];
+        if (energy < 0.002f) continue;
+        const float t = motionTime;
+        if (type == 0 || type == 2 || type == 4)
+        {
+            juce::Graphics::ScopedSaveState inside (g);
+            juce::Path clip; clip.addEllipse (cx-radius, cy-radius, radius*2, radius*2);
+            g.reduceClipRegion (clip);
+            const int strands = type == 4 ? 28 : (type == 0 ? 9 : 7);
+            for (int k = 0; k < strands; ++k)
+            {
+                juce::Path p;
+                for (int j = 0; j < 85; ++j)
+                {
+                    const float u = j / 84.0f;
+                    float x, y;
+                    if (type == 0)
+                    {
+                        const float r = 14.0f + u * 119.0f;
+                        const float q = k * 0.698132f + u*4.5f - t*0.5f;
+                        x = cx + std::cos(q)*r; y = cy + std::sin(q)*r*0.85f;
+                    }
+                    else
+                    {
+                        x = cx-radius + u*radius*2;
+                        y = cy + std::sin(u*5.0f+t*0.6f+k*0.17f)*48.0f
+                            + (k-(strands-1)*0.5f)*(type == 4 ? 2.7f : 10.0f)
+                            + std::sin(u*13.0f-t+k)*8.0f;
+                    }
+                    if (j == 0) p.startNewSubPath(x,y); else p.lineTo(x,y);
+                }
+                stroke(p,energy*(type==4 ? 0.13f : 0.27f),type==4 ? 2.0f : 1.2f,type==4 && k%3!=0);
+            }
+            if (type == 0)
+            {
+                g.setGradientFill (juce::ColourGradient (juce::Colour(0xff02040b).withAlpha(energy*.7f),cx,cy,
+                    juce::Colours::transparentBlack,cx+38,cy,false));
+                g.fillEllipse(cx-38,cy-38,76,76);
+            }
+        }
+        if (type == 1 || type == 3)
+        {
+            for (int k=0;k<7;++k)
+            {
+                const float phase = std::fmod(t*.2f+k/7.0f,1.0f);
+                const float rx = 80+phase*450, ry=4+phase*37;
+                juce::Path ring; ring.addEllipse(cx-rx,465-ry,rx*2,ry*2);
+                stroke(ring,energy*(1-phase)*.28f,1.1f,k%2==0);
+            }
+        }
+        if (type == 1)
+        {
+            for (float x : { 275.0f, 380.0f, 575.0f, 963.0f, 1169.0f, 1260.0f })
+            {
+                juce::Path edge; edge.startNewSubPath(x,220); edge.lineTo(x,451);
+                stroke(edge,energy*.12f,1.4f,true);
+            }
+            for (float x : { 496.0f, 1040.0f })
+            {
+                g.setGradientFill(juce::ColourGradient(pinkLight.withAlpha(energy*.22f),x,380,
+                    juce::Colours::transparentBlack,x+42,380,true));
+                g.fillEllipse(x-42,338,84,84);
+            }
+        }
+        if (type == 2)
+        {
+            g.setColour(pinkLight.withAlpha(energy*.35f));
+            g.drawEllipse(cx-radius,cy-radius,radius*2,radius*2,1.2f);
+        }
+    }
 }

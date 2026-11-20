@@ -175,5 +175,5 @@ jobs:
         shell: bash
         run: |
           gh release create "$TAG" release-files/*.zip release-files/*.png \
-            --target "$GITHUB_SHA" --prerelease --title "Smoked Glass + Titanium — preview ${{ github.run_number }}" \
-            --notes "Smoked Glass layout with Titanium rotary knobs, calibrated live meters, dynamic decay control and glass panels. Windows x64 VST3 and macOS universal AU. Both platform builds, DSP tests and four-size editor renders passed. Unsigned preview; macOS may require local approval. Download the PNGs to inspect the actual UI before installing."
+            --target "$GITHUB_SHA" --prerelease --title "Living Spaces + diffused tails — preview ${{ github.run_number }}" \
+            --notes "Five audio-reactive scene modes with Motion toggle, repaired Cavern/Ambient art, output allpass diffusion, wet-path low-cut and filtered early reflections. Wet telemetry is independent of Mix. Windows x64 VST3 and macOS universal AU. Both platform builds, DSP tests and four-size editor renders passed. Unsigned preview; macOS may require local approval. Download the PNGs to inspect the actual UI before installing."

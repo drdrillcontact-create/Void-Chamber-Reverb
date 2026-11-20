@@ -3,6 +3,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
 #include <cmath>
+#include <atomic>
 
 //==============================================================================
 // Void Chamber Reverb DSP core — written from scratch for this plugin.
@@ -102,6 +103,8 @@ public:
 
     void process (juce::AudioBuffer<float>& buffer);
 
+    float getWetEnergy() const noexcept { return wetEnergy.load (std::memory_order_relaxed); }
+
     // Estimated modal density is useful for tests only.
     static float referenceLineMs (int index) noexcept;
 
@@ -142,6 +145,9 @@ private:
     std::array<float, numLines> lfoRateMul {};
 
     HighShelf airShelfL, airShelfR;
+    std::array<FeedbackAllpass, 3> outputDiffL, outputDiffR;
+    SVF earlyLPLeft, earlyLPRight, inputHPLeft, inputHPRight;
+    std::atomic<float> wetEnergy { 0.0f };
 
     // Parameters (raw values, applied at block rate through smoothers)
     juce::SmoothedValue<float> mixS        { 0.5f };

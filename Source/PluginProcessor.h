@@ -51,6 +51,8 @@ public:
     float getInputLevel() const noexcept { return inputLevel.load(std::memory_order_relaxed); }
     float getOutputLevel() const noexcept { return outputLevel.load(std::memory_order_relaxed); }
 
+    float getWetEnergy() const noexcept { return reverb.getWetEnergy(); }
+
     // --- Factory presets ---------------------------------------------------------
     // 50 presets in 5 categories x 10, ordered the same as the space-type orbs:
     // Void (0-9), Hall (10-19), Plate (20-29), Cavern (30-39), Ambient (40-49).

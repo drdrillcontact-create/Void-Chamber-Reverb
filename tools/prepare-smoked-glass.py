@@ -20,4 +20,7 @@ canvas.save('Assets/void-background.jpg',quality=96)
 concept=Image.open('docs/design/composition-b-smoked-glass.png').convert('RGB')
 boxes=[(42,793,140,891),(144,793,242,891),(242,793,340,891),(340,793,438,891),(438,793,536,891)]
 for name,box in zip(['void','hall','plate','cavern','ambient'],boxes):
- concept.crop(box).resize((256,256),Image.Resampling.LANCZOS).save('Assets/space-'+name+'.jpg',quality=96)
+ art=concept.crop(box).resize((256,256),Image.Resampling.LANCZOS)
+ if name in ('cavern','ambient'):
+  art=art.crop((30,24,231,225)).resize((256,256),Image.Resampling.LANCZOS)
+ art.save('Assets/space-'+name+'.jpg',quality=96)

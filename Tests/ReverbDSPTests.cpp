@@ -242,6 +242,26 @@ int main()
             }
     }
 
+    // Wet telemetry must remain active with Mix=0 and reset deterministically.
+    for (double rate : { 44100.0, 48000.0, 96000.0 })
+    {
+        ReverbDSP dsp; dsp.prepare (rate); dsp.setMix (0.0f);
+        juce::AudioBuffer<float> audio (2, 256);
+        bool observedWet = false;
+        for (int block = 0; block < 100; ++block)
+        {
+            for (int ch = 0; ch < 2; ++ch)
+                for (int n = 0; n < 256; ++n)
+                    audio.setSample (ch,n,0.1f * std::sin (float ((block*256+n)*900.0/rate)));
+            dsp.process (audio);
+            const float energy = dsp.getWetEnergy();
+            if (! std::isfinite (energy) || energy > 4.0f) return 1;
+            observedWet = observedWet || energy > 0.0001f;
+        }
+        if (! observedWet) return 1;
+        dsp.reset(); if (dsp.getWetEnergy() != 0.0f) return 1;
+    }
+
     // 5) Zero-sized processing must not crash
     {
         ReverbDSP reverb;
