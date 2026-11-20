@@ -10,6 +10,12 @@ if(NOT JUCE_ROOT OR NOT EXISTS "${JUCE_ROOT}/CMakeLists.txt"
 endif()
 add_subdirectory("${JUCE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE" EXCLUDE_FROM_ALL)
 
+# Reject truncated artwork/font downloads at configure time, not at native paint.
+file(SIZE "${CMAKE_CURRENT_SOURCE_DIR}/Assets/fonts/CormorantGaramond.ttf" title_font_bytes)
+if(title_font_bytes LESS 1000)
+    message(FATAL_ERROR "Embedded title font is missing or truncated")
+endif()
+
 # Binary assets (background scene and the five Space Type orbs).
 juce_add_binary_data(VoidChamberAssets
     SOURCES

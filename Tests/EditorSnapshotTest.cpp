@@ -22,6 +22,11 @@ int main(int argc, char* argv[])
     // without it the graphics subsystem is not initialised.
     juce::ScopedJuceInitialiser_GUI juceInitialiser;
 
+    if (BinaryData::CormorantGaramond_ttfSize < 1000
+        || juce::Typeface::createSystemTypefaceFor (BinaryData::CormorantGaramond_ttf,
+             static_cast<size_t> (BinaryData::CormorantGaramond_ttfSize)) == nullptr)
+        return failed (11, __LINE__);
+
     // A moving indicator and per-accent value arc must not be baked into the
     // Titanium face. Exercise both accents at minimum, middle and maximum.
     const auto face = juce::ImageCache::getFromMemory (

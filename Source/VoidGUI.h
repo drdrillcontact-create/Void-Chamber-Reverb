@@ -99,7 +99,7 @@ namespace VoidGUI
     {
         static const auto face = juce::Typeface::createSystemTypefaceFor (
             BinaryData::CormorantGaramond_ttf, static_cast<size_t> (BinaryData::CormorantGaramond_ttfSize));
-        return juce::Font (juce::FontOptions (face).withHeight (size));
+        return juce::Font (juce::FontOptions (face != nullptr ? face : raleway (400)).withHeight (size));
     }
 
     // Smoked-glass construction shared by the header, meters and control bays.
