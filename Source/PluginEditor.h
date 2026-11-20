@@ -44,7 +44,6 @@ public:
     void paint (juce::Graphics&) override;
 
 private:
-    static constexpr float arcLen = 516.0f, arcHei = 248.0f;
 };
 
 //==============================================================================

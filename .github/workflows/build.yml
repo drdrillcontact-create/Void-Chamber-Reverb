@@ -94,6 +94,26 @@ jobs:
       - name: Run DSP and editor-snapshot tests
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Prepare opt-in visual review
+        if: runner.os == 'macOS' && contains(github.event.head_commit.message, '[visual-review]')
+        run: python3 tools/ci-visual-review.py prepare
+
+      - name: Visual review part 1
+        if: runner.os == 'macOS' && contains(github.event.head_commit.message, '[visual-review]')
+        run: python3 tools/ci-visual-review.py 0
+
+      - name: Visual review part 2
+        if: runner.os == 'macOS' && contains(github.event.head_commit.message, '[visual-review]')
+        run: python3 tools/ci-visual-review.py 1
+
+      - name: Visual review part 3
+        if: runner.os == 'macOS' && contains(github.event.head_commit.message, '[visual-review]')
+        run: python3 tools/ci-visual-review.py 2
+
+      - name: Visual review part 4
+        if: runner.os == 'macOS' && contains(github.event.head_commit.message, '[visual-review]')
+        run: python3 tools/ci-visual-review.py 3
+
       - name: Upload editor snapshot
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -114,10 +134,10 @@ jobs:
           path: build/VoidChamberReverb_artefacts/Release/${{ matrix.format }}/${{ matrix.artifact }}.zip
           if-no-files-found: error
 
-  publish-titanium-preview:
-    name: Publish tested Titanium preview
+  publish-ui-preview:
+    name: Publish tested UI preview
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/998f85ab-void-chamber-reverb' && contains(github.event.head_commit.message, '[titanium-preview]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/998f85ab-void-chamber-reverb' && contains(github.event.head_commit.message, '[ui-preview]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -138,9 +158,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: titanium-preview-${{ github.run_number }}
+          TAG: smoked-glass-preview-${{ github.run_number }}
         shell: bash
         run: |
           gh release create "$TAG" release-files/*.zip release-files/*.png \
-            --target "$GITHUB_SHA" --prerelease --title "Titanium knobs — preview ${{ github.run_number }}" \
-            --notes "Test build with Titanium rotary knobs: live indicators, pink/cyan value arcs, and shared metal artwork. Windows x64 VST3 and macOS universal AU. Both platform builds, DSP tests and four-size editor renders passed. Unsigned preview; macOS may require local approval. Download the PNGs to inspect the actual UI before installing."
+            --target "$GITHUB_SHA" --prerelease --title "Smoked Glass + Titanium — preview ${{ github.run_number }}" \
+            --notes "Smoked Glass layout with Titanium rotary knobs, calibrated live meters, dynamic decay control and glass panels. Windows x64 VST3 and macOS universal AU. Both platform builds, DSP tests and four-size editor renders passed. Unsigned preview; macOS may require local approval. Download the PNGs to inspect the actual UI before installing."

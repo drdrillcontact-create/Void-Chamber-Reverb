@@ -18,10 +18,10 @@ namespace VoidGUI
     const juce::Colour cyanHot     { 0xffa5f4ff };
     const juce::Colour purple      { 0xffb14bff };
     const juce::Colour white       { 0xfff2f4fa };
-    const juce::Colour textDim     { 0xff9aa0b0 };
-    const juce::Colour textFaint   { 0xff5b6270 };
+    const juce::Colour textDim     { 0xffbac8d3 };
+    const juce::Colour textFaint   { 0xff81939f };
     const juce::Colour panel       { 0xff0c0e14 };
-    const juce::Colour panelStroke { 0xff232833 };
+    const juce::Colour panelStroke { 0xff3f535f };
     const juce::Colour panelInner  { 0xff3a4152 };
 
     // Fonts -----------------------------------------------------------------
@@ -89,23 +89,42 @@ namespace VoidGUI
         }
     }
 
-    // Rounded panel with the signature inner-top highlight.
-    inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> r, float cornerRadius = 16.0f, float fillAlpha = 0.72f)
+    inline float meterPosition (float linearGain)
     {
-        juce::Path path;
-        path.addRoundedRectangle (r, cornerRadius);
+        return juce::jlimit (0.0f, 1.0f,
+            (juce::Decibels::gainToDecibels (linearGain, -60.0f) + 60.0f) / 60.0f);
+    }
 
-        g.setColour (panel.withAlpha (fillAlpha));
-        g.fillPath (path);
+    inline juce::Font titleFont (float size)
+    {
+        static const auto face = juce::Typeface::createSystemTypefaceFor (
+            BinaryData::CormorantGaramond_ttf, static_cast<size_t> (BinaryData::CormorantGaramond_ttfSize));
+        return juce::Font (juce::FontOptions (face).withHeight (size));
+    }
 
-        g.setColour (panelStroke);
-        g.strokePath (path, juce::PathStrokeType (1.2f));
-
-        // Inner top highlight
-        juce::Path top;
-        top.addRoundedRectangle (r.reduced (1.0f), cornerRadius - 1.0f);
-        g.setColour (juce::Colours::white.withAlpha (0.045f));
-        g.strokePath (top, juce::PathStrokeType (1.0f));
+    // Smoked-glass construction shared by the header, meters and control bays.
+    // Borders are vector strokes so they remain crisp at every host size.
+    inline void drawPanel (juce::Graphics& g, juce::Rectangle<float> r,
+                           float cornerRadius = 16.0f, float fillAlpha = 0.88f)
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.fillRoundedRectangle (r.translated (0.0f, 3.0f).expanded (2.0f), cornerRadius + 1.0f);
+        juce::ColourGradient glass (juce::Colour (0xff1b2933).withAlpha (fillAlpha), r.getX(), r.getY(),
+                                    juce::Colour (0xff050a10).withAlpha (fillAlpha), r.getRight(), r.getBottom(), false);
+        glass.addColour (0.18, juce::Colour (0xff0b131b).withAlpha (fillAlpha));
+        glass.addColour (0.65, juce::Colour (0xff060b11).withAlpha (fillAlpha));
+        g.setGradientFill (glass);
+        g.fillRoundedRectangle (r, cornerRadius);
+        juce::ColourGradient edge (juce::Colour (0xffa1bac7).withAlpha (0.74f), r.getX(), r.getY(),
+                                   juce::Colour (0xff3d4454).withAlpha (0.85f), r.getRight(), r.getBottom(), false);
+        edge.addColour (0.3, juce::Colour (0xff2a3b47));
+        edge.addColour (0.52, juce::Colour (0xff728795).withAlpha (0.6f));
+        g.setGradientFill (edge);
+        g.drawRoundedRectangle (r, cornerRadius, 1.3f);
+        g.setColour (juce::Colour (0xffa8d9e8).withAlpha (0.13f));
+        g.drawRoundedRectangle (r.reduced (2.5f), juce::jmax (1.0f, cornerRadius - 2.5f), 0.9f);
+        g.setColour (juce::Colours::black.withAlpha (0.85f));
+        g.drawRoundedRectangle (r.reduced (4.2f), juce::jmax (1.0f, cornerRadius - 4.2f), 0.8f);
     }
 
     // Soft neon glow stroke: three passes wide->thin.
@@ -240,7 +259,7 @@ public:
         const auto cyan = VoidGUI::cyan;
 
         juce::Path path;
-        path.addRoundedRectangle (b, b.getHeight() * 0.28f);
+        path.addRoundedRectangle (b, 6.0f);
 
         g.setColour (on ? cyan.withAlpha (0.10f) : juce::Colour (0xff0d0f15).withAlpha (0.85f));
         g.fillPath (path);
@@ -248,7 +267,7 @@ public:
         if (on)
         {
             g.setColour (cyan.withAlpha (0.35f));
-            g.strokePath (path, juce::PathStrokeType (4.5f));
+            g.strokePath (path, juce::PathStrokeType (1.8f));
         }
         g.setColour (on ? cyan : (isMouseOverButton ? VoidGUI::panelInner : VoidGUI::panelStroke));
         g.strokePath (path, juce::PathStrokeType (isButtonDown ? 2.0f : 1.3f));
@@ -259,7 +278,7 @@ public:
     {
         const bool on = button.getToggleState();
         VoidGUI::drawTrackedText (g, button.getButtonText().toUpperCase(),
-                                  button.getLocalBounds().toFloat(), 3.2f,
+                                  button.getLocalBounds().toFloat(), 1.0f,
                                   VoidGUI::font (500, 15.0f),
                                   on ? VoidGUI::cyan : VoidGUI::textDim);
     }
@@ -274,15 +293,13 @@ public:
     void drawButtonBackground (juce::Graphics& g, juce::Button& button,
                                const juce::Colour&, bool isMouseOverButton, bool isButtonDown) override
     {
-        const auto b = button.getLocalBounds().toFloat().reduced (0.5f);
-        juce::Path path;
-        path.addRoundedRectangle (b, 12.0f);
-        g.setColour (juce::Colour (0xff0b0d13).withAlpha (0.9f));
-        g.fillPath (path);
-        g.setColour (isMouseOverButton ? VoidGUI::panelInner : VoidGUI::panelStroke);
-        g.strokePath (path, juce::PathStrokeType (1.2f));
-        if (isButtonDown)
-            g.setColour (VoidGUI::pink.withAlpha (0.25f)), g.fillPath (path);
+        const auto b = button.getLocalBounds().toFloat().reduced (1.0f);
+        VoidGUI::drawPanel (g, b, 6.0f, 0.95f);
+        if (isMouseOverButton || isButtonDown)
+        {
+            g.setColour (VoidGUI::cyan.withAlpha (isButtonDown ? 0.10f : 0.035f));
+            g.fillRoundedRectangle (b.reduced (3.0f), 4.0f);
+        }
     }
 
     void drawButtonText (juce::Graphics& g, juce::TextButton& button,
@@ -291,7 +308,7 @@ public:
         const auto b = button.getLocalBounds().toFloat();
         VoidGUI::drawTrackedText (g, button.getButtonText(),
                                   b.reduced (12.0f, 0.0f), 0.3f,
-                                  VoidGUI::font (400, 16.0f),
+                                  VoidGUI::font (400, 21.0f),
                                   VoidGUI::white,
                                   juce::Justification::centred);
     }

@@ -57,6 +57,12 @@ int main(int argc, char* argv[])
         if (stream.failedToOpen() || ! juce::PNGImageFormat().writeImageToStream (knobSheet, stream)) return 1;
     }
 
+    // dB calibration used by both the fill and peak line must match the ticks.
+    for (int db : { 0, -6, -12, -24, -48, -60 })
+        if (std::abs (VoidGUI::meterPosition (juce::Decibels::decibelsToGain (static_cast<float> (db)))
+                      - (db + 60.0f) / 60.0f) > 0.0001f) return 8;
+    if (VoidGUI::meterPosition (0.0f) != 0.0f || VoidGUI::meterPosition (2.0f) != 1.0f) return 8;
+
     VoidChamberReverbAudioProcessor processor;
 
     // Feed a bright test tone through the effect so the meters show signal,
@@ -82,6 +88,50 @@ int main(int argc, char* argv[])
     }
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    // The redesign must retain real parameter controls and the preset overlay.
+    auto& state = processor.getValueTreeState();
+    int orbIndex = 0;
+    bool monoFound = false, stereoFound = false, presetOpened = false;
+    const float initialSpace = state.getRawParameterValue (VoidChamberReverbAudioProcessor::spaceTypeID)->load();
+    const float initialMode = state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load();
+    for (int i = 0; i < editor->getNumChildComponents(); ++i)
+    {
+        auto* child = editor->getChildComponent (i);
+        if (auto* orb = dynamic_cast<OrbButton*> (child))
+        {
+            if (orbIndex == 3)
+            {
+                orb->onClick();
+                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::spaceTypeID)->load() != 3.0f) return 9;
+            }
+            ++orbIndex;
+        }
+        if (auto* button = dynamic_cast<juce::TextButton*> (child))
+        {
+            if (button->getButtonText() == "MONO")
+            {
+                button->onClick(); monoFound = true;
+                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load() != 1.0f) return 9;
+            }
+            else if (button->getButtonText() == "STEREO")
+            {
+                button->onClick(); stereoFound = true;
+                if (state.getRawParameterValue (VoidChamberReverbAudioProcessor::channelModeID)->load() != 0.0f) return 9;
+            }
+            else if (button->getButtonText() == processor.getCurrentPresetName())
+                button->onClick();
+        }
+    }
+    for (int i = 0; i < editor->getNumChildComponents(); ++i)
+        if (auto* browser = dynamic_cast<PresetBrowser*> (editor->getChildComponent (i)))
+            presetOpened = browser->isVisible();
+    if (orbIndex != 5 || ! monoFound || ! stereoFound || ! presetOpened) return 9;
+    editor->keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+    for (const auto& restore : { std::make_pair (VoidChamberReverbAudioProcessor::spaceTypeID, initialSpace),
+                                std::make_pair (VoidChamberReverbAudioProcessor::channelModeID, initialMode) })
+        if (auto* parameter = state.getParameter (restore.first))
+            parameter->setValueNotifyingHost (parameter->convertTo0to1 (restore.second));
+
     // Include host-driven off-ratio sizes: some DAWs bypass the constrainer.
     const juce::Point<int> sizes[] = { {1536, 1024}, {960, 640}, {1200, 900}, {1800, 900} };
     for (int index = 0; index < 4; ++index)

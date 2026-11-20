@@ -20,6 +20,7 @@ juce_add_binary_data(VoidChamberAssets
         Assets/space-plate.jpg
         Assets/space-cavern.jpg
         Assets/space-ambient.jpg
+        Assets/fonts/CormorantGaramond.ttf
         Assets/fonts/Raleway-200.ttf
         Assets/fonts/Raleway-300.ttf
         Assets/fonts/Raleway-400.ttf

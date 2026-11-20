@@ -66,75 +66,53 @@ void PinkLevelMeter::paint (juce::Graphics& g)
 
 void LevelMeter::paintMeter (juce::Graphics& g, bool pink)
 {
-    const auto full = getLocalBounds().toFloat();
-    const float trackW = juce::jmin (22.0f, full.getWidth() * 0.24f);
-    const float trackH = full.getHeight() - 34.0f;
-    const float x = full.getCentreX() - trackW * 0.5f;
-    const auto track = juce::Rectangle<float> (x, 0.0f, trackW, trackH);
-
-    // Scale ticks (left and right)
-    g.setColour (VoidGUI::textFaint.withAlpha (0.75f));
-    for (int i = 0; i <= 8; ++i)
+    const float w = static_cast<float> (getWidth()), h = static_cast<float> (getHeight());
+    const auto accent = pink ? VoidGUI::pinkHot : VoidGUI::cyanHot;
+    const juce::Rectangle<float> glass (4.0f, 2.0f, w - 8.0f, h - 46.0f);
+    VoidGUI::drawPanel (g, glass, 10.0f, 0.93f);
+    const juce::Rectangle<float> track (w * 0.49f, 45.0f, w * 0.14f, h - 107.0f);
+    g.setColour (juce::Colour (0xff010508));
+    g.fillRect (track.expanded (3.0f));
+    g.setColour (accent.withAlpha (0.10f));
+    g.fillRect (track);
+    // The ticks and signal share the same dB coordinate mapping, not linear gain.
+    for (int db = 0; db >= -60; db -= 3)
     {
-        const float ty = track.getY() + track.getHeight() * (static_cast<float> (i) / 8.0f);
-        const bool major = i % 2 == 0;
-        const float tick = major ? 15.0f : 8.0f;
-        g.drawLine (x - tick - 4.0f, ty, x - 5.0f, ty, 1.1f);
-        g.drawLine (x + trackW + 5.0f, ty, x + trackW + tick + 4.0f, ty, 1.1f);
+        const float y = track.getBottom() - (db + 60.0f) / 60.0f * track.getHeight();
+        const bool major = db % 6 == 0;
+        g.setColour (VoidGUI::textDim.withAlpha (major ? 0.8f : 0.35f));
+        g.drawLine (track.getX() - (major ? 13.0f : 8.0f), y, track.getX() - 4.0f, y, 0.8f);
+        if (major)
+        {
+            g.setFont (VoidGUI::font (400, 12.5f));
+            g.drawText (juce::String (db), juce::Rectangle<float> (7.0f, y - 8.0f, track.getX() - 23.0f, 16.0f),
+                        juce::Justification::centredRight);
+        }
     }
-
-    // Track body
-    juce::Path trackPath;
-    trackPath.addRectangle (track);
-    g.setColour (juce::Colour (0xff0b0d12));
-    g.fillPath (trackPath);
-    g.setColour (VoidGUI::panelStroke);
-    g.strokePath (trackPath, juce::PathStrokeType (1.1f));
-
-    // Fill
-    const float level = juce::jlimit (0.0f, 1.0f, display);
-    const float fillH = level * (track.getHeight() - 4.0f);
-    if (fillH > 1.0f)
+    const float fraction = VoidGUI::meterPosition (display);
+    if (fraction > 0.0f)
     {
-        const auto fillRect = juce::Rectangle<float> (track.getX() + 2.0f, track.getBottom() - 2.0f - fillH,
-                                                      track.getWidth() - 4.0f, fillH).toFloat();
-        g.setColour (pink ? juce::Colour (0xff3a0f26) : juce::Colour (0xff0e3a45)); // deep base glow
-        g.fillRect (track.getX() + 2.0f, track.getY() + 2.0f, track.getWidth() - 4.0f, track.getHeight() - 4.0f);
-
-        juce::ColourGradient grad (pink ? juce::Colour (0xff94184f) : juce::Colour (0xff0a7d94),
-                                   fillRect.getX(), fillRect.getBottom(),
-                                   pink ? VoidGUI::pinkHot : VoidGUI::cyanHot,
-                                   fillRect.getX(), fillRect.getY(), false);
-        grad.addColour (0.55, pink ? VoidGUI::pink : VoidGUI::cyan);
-        g.setGradientFill (grad);
-        juce::Path fillPath;
-        fillPath.addRectangle (fillRect);
-        g.fillPath (fillPath);
+        const auto fill = track.withTrimmedTop (track.getHeight() * (1.0f - fraction));
+        juce::ColourGradient light (accent.withAlpha (0.38f), fill.getX(), fill.getBottom(),
+                                    accent, fill.getX(), fill.getY(), false);
+        g.setGradientFill (light);
+        g.fillRect (fill);
+        g.setColour (accent.withAlpha (0.12f));
+        g.fillRect (fill.expanded (4.0f, 0.0f));
     }
-
-    // Peak hold line
-    if (peak > 0.005f)
+    if (peak > 0.001f)
     {
-        const float py = track.getBottom() - 2.0f - peak * (track.getHeight() - 4.0f);
-        g.setColour (peak > 0.96f ? juce::Colour (0xffff4d5e)
-                                  : (pink ? VoidGUI::pinkHot : VoidGUI::cyanHot).withAlpha (0.95f));
-        g.drawLine (track.getX() + 2.0f, py, track.getRight() - 2.0f, py, 2.0f);
+        const float y = track.getBottom() - VoidGUI::meterPosition (peak) * track.getHeight();
+        g.setColour (juce::Colour (0xffeffbff));
+        g.fillRoundedRectangle (track.getX() - 3.0f, y - 1.4f, track.getWidth() + 6.0f, 2.8f, 1.0f);
     }
-
-    // Clip indicator
-    if (clip > 0.02f)
-    {
-        g.setColour (juce::Colour (0xffff3b47).withAlpha (clip));
-        g.fillEllipse (track.getCentreX() - 4.0f, -10.0f, 8.0f, 8.0f);
-    }
-
-    // dB readout
-    const float db = level <= 0.001f ? -60.0f : 20.0f * std::log10 (level);
-    const auto dbText = (db <= -59.5f) ? juce::String ("-inf dB") : juce::String (db, 1) + " dB";
-    g.setFont (VoidGUI::font (400, 15.0f));
-    g.setColour (VoidGUI::textDim);
-    g.drawText (dbText, juce::Rectangle<float> (full.getX(), full.getHeight() - 30.0f, full.getWidth(), 26.0f),
-                juce::Justification::centred);
+    g.setColour (clip > 0.02f ? juce::Colour (0xffff546e) : accent.withAlpha (0.6f));
+    g.fillEllipse (track.getCentreX() - 3.0f, 16.0f, 6.0f, 6.0f);
+    const float db = juce::Decibels::gainToDecibels (display, -60.0f);
+    const auto text = display <= 0.001f ? juce::String ("-inf dB") : juce::String (db, 1) + " dB";
+    g.setColour (accent);
+    g.setFont (VoidGUI::font (400, 22.0f));
+    g.drawText (text, juce::Rectangle<float> (0.0f, h - 37.0f, w, 29.0f), juce::Justification::centred);
 }
 
 //==============================================================================
@@ -152,127 +130,80 @@ DecayArcSlider::DecayArcSlider()
 
 void DecayArcSlider::paint (juce::Graphics& g)
 {
-    const float w = static_cast<float> (getWidth());
-    const float h = static_cast<float> (getHeight());
-    const float sx = w / arcLen, sy = h / arcHei;
-    const float s  = juce::jmin (sx, sy);
-    g.addTransform (juce::AffineTransform::scale (s).translated ((w - arcLen * s) * 0.5f, (h - arcHei * s) * 0.5f));
-
-    const float cx = arcLen * 0.5f;
-    const float cy = 252.0f;
-    const float radius = 238.0f;
-    const float a0 = -1.493f, a1 = 1.493f;
-
-    const auto arcPoint = [&] (float angle)
-    {
-        return juce::Point<float> (cx + radius * std::sin (angle), cy - radius * std::cos (angle));
-    };
-
-    // ---- Track
+    g.addTransform (juce::AffineTransform::scale (getWidth() / 420.0f, getHeight() / 248.0f));
+    juce::Path dome;
+    dome.startNewSubPath (2.0f, 244.0f);
+    dome.lineTo (2.0f, 236.0f);
+    dome.addCentredArc (210.0f, 236.0f, 208.0f, 232.0f, 0.0f,
+                        -juce::MathConstants<float>::halfPi, juce::MathConstants<float>::halfPi, false);
+    dome.lineTo (418.0f, 244.0f);
+    dome.closeSubPath();
+    juce::ColourGradient glass (juce::Colour (0xff293643), 80.0f, 0.0f,
+                                juce::Colour (0xff050a10), 330.0f, 244.0f, false);
+    glass.addColour (0.35, juce::Colour (0xff0b141e));
+    g.setGradientFill (glass);
+    g.fillPath (dome);
+    g.setColour (juce::Colour (0xff91a9b9).withAlpha (0.7f));
+    g.strokePath (dome, juce::PathStrokeType (1.4f));
+    g.setColour (juce::Colour (0xff8fcddd).withAlpha (0.12f));
+    g.strokePath (dome, juce::PathStrokeType (5.0f));
+    const float a0 = -1.49f, a1 = 1.49f;
     juce::Path track;
-    track.startNewSubPath (arcPoint (a0));
-    track.addCentredArc (cx, cy, radius, radius, 0.0f, a0, a1, true);
-    g.setColour (juce::Colour (0xff191c23));
-    g.strokePath (track, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour (juce::Colour (0xff363d49));
-    g.strokePath (track, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    // ---- Value arc: cyan -> white -> magenta neon tube
+    track.addCentredArc (210.0f, 232.0f, 190.0f, 210.0f, 0.0f, a0, a1, true);
+    g.setColour (juce::Colour (0xff315664));
+    g.strokePath (track, juce::PathStrokeType (1.7f));
     const float norm = static_cast<float> ((getValue() - getMinimum()) / (getMaximum() - getMinimum()));
-    const float aNow = a0 + (a1 - a0) * norm;
-    if (norm > 0.002f)
+    const float angle = a0 + (a1 - a0) * norm;
+    if (norm > 0.0001f)
     {
         juce::Path value;
-        value.startNewSubPath (arcPoint (a0));
-        value.addCentredArc (cx, cy, radius, radius, 0.0f, a0, aNow, true);
-
-        const auto leftEnd  = arcPoint (a0);
-        const auto apexPt   = arcPoint (0.0f);
-        const auto rightEnd = arcPoint (a1);
-        juce::ColourGradient neon (VoidGUI::cyan, leftEnd.x, leftEnd.y, VoidGUI::pink, rightEnd.x, rightEnd.y, false);
-        neon.addColour (0.5, juce::Colours::white);
-        juce::ignoreUnused (apexPt);
-
-        g.setColour (VoidGUI::cyan.withAlpha (0.18f));
-        g.strokePath (value, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (VoidGUI::cyan.withAlpha (0.35f));
-        g.strokePath (value, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setGradientFill (neon);
-        g.strokePath (value, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-        const auto tip = arcPoint (aNow);
+        value.addCentredArc (210.0f, 232.0f, 190.0f, 210.0f, 0.0f, a0, angle, true);
+        VoidGUI::strokeGlow (g, value, VoidGUI::cyanHot, 2.0f);
+        const float x = 210.0f + 190.0f * std::sin (angle);
+        const float y = 232.0f - 210.0f * std::cos (angle);
         g.setColour (juce::Colours::white);
-        g.fillEllipse (tip.x - 1.3f, tip.y - 1.3f, 2.6f, 2.6f);
+        g.fillEllipse (x - 2.8f, y - 2.8f, 5.6f, 5.6f);
     }
-
-    // ---- Labels
-    VoidGUI::drawTrackedText (g, "DECAY TIME", { cx - 130.0f, 56.0f, 260.0f, 20.0f }, 2.0f,
-                              VoidGUI::font (400, 15.0f), juce::Colour (0xffcdd2de));
-
-    const auto seconds = (float) getValue();
-    const auto numberText = seconds < 10.0f ? juce::String (seconds, 1) : juce::String (juce::roundToInt (seconds));
-    g.setFont (VoidGUI::font (400, 52.0f));
+    VoidGUI::drawTrackedText (g, "DECAY TIME", {100.0f, 78.0f, 220.0f, 21.0f}, 1.7f,
+                              VoidGUI::font (400, 15.0f), VoidGUI::textDim);
+    g.setFont (VoidGUI::font (300, 57.0f));
     g.setColour (VoidGUI::white);
-    const float numW = VoidGUI::textWidth (g.getCurrentFont(), numberText);
-    g.setFont (VoidGUI::font (300, 27.0f));
-    const float unitW = VoidGUI::textWidth (g.getCurrentFont(), " s");
-    const float totalW = numW + unitW;
-    g.setFont (VoidGUI::font (400, 52.0f));
-    g.drawSingleLineText (numberText, juce::roundToInt (cx - totalW * 0.5f), 114);
-    g.setFont (VoidGUI::font (300, 27.0f));
-    g.setColour (VoidGUI::textDim);
-    g.drawSingleLineText (" s", juce::roundToInt (cx - totalW * 0.5f + numW), 114);
+    g.drawText (juce::String (getValue(), 1) + " s", juce::Rectangle<float> (104.0f, 102.0f, 220.0f, 59.0f),
+                juce::Justification::centred);
 
-    // ---- Decay waveform (mirrored bars + two envelope curves)
-    const float baseY = 205.0f;
-    const float halfSpan = 208.0f;
-    const int barCount = 58;
-    for (int i = 0; i < barCount; ++i)
+    // Stylised decay envelope (not an audio analyser). Its time constant follows
+    // the actual RT60 value; the readout and drag attachment remain independent.
+    const float rate = 4.0f + 5.0f * (1.0f - norm);
+    juce::Path envelope, fill;
+    constexpr float base = 211.0f;
+    for (int i = 0; i <= 180; ++i)
     {
-        const float t = (float) i / (float) (barCount - 1);
-        const float env = std::exp (-2.6f * t)
-                        * (0.58f + 0.42f * std::sin (t * 21.0f + 0.6f) * std::sin (t * 6.3f + 1.2f));
-        const float barH = juce::jmax (1.5f, env * 46.0f);
-        const float bx = cx - halfSpan + t * halfSpan * 2.0f;
-        const float alpha = 0.15f + 0.75f * (1.0f - t);
-        g.setColour (VoidGUI::pink.withAlpha (alpha));
-        g.drawLine (bx, baseY - barH, bx, baseY + 8.0f, 0.8f);
+        const float t = i / 180.0f;
+        const float x = 30.0f + t * 360.0f;
+        const float amp = 155.0f * (1.0f - std::exp (-45.0f * t)) * std::exp (-rate * t);
+        const float y = base - amp;
+        if (i == 0) { envelope.startNewSubPath (x, y); fill.startNewSubPath (x, y); }
+        else { envelope.lineTo (x, y); fill.lineTo (x, y); }
+        if (i % 2 == 0)
+        {
+            g.setColour (VoidGUI::pinkHot.withAlpha (0.55f * (1.0f - t)));
+            g.drawLine (x, y, x, base + amp * 0.22f, 0.65f);
+        }
     }
-
-    juce::Path curve1, curve2;
-    for (int i = 0; i <= 120; ++i)
-    {
-        const float t = (float) i / 120.0f;
-        const float env = std::exp (-2.15f * t);
-        const float x = cx - halfSpan + t * halfSpan * 2.0f;
-        const float y1 = baseY - std::sin (t * 9.2f + 0.55f) * env * 34.0f - 4.0f;
-        const float y2 = baseY - std::sin (t * 9.2f + 1.75f) * env * 22.0f - 2.0f;
-        if (i == 0) { curve1.startNewSubPath (x, y1); curve2.startNewSubPath (x, y2); }
-        else        { curve1.lineTo (x, y1);         curve2.lineTo (x, y2); }
-    }
-    g.setColour (VoidGUI::purple.withAlpha (0.55f));
-    g.strokePath (curve2, juce::PathStrokeType (1.3f));
-    g.setColour (VoidGUI::purple.withAlpha (0.30f));
-    g.strokePath (curve1, juce::PathStrokeType (4.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    fill.lineTo (390.0f, base); fill.lineTo (30.0f, base); fill.closeSubPath();
+    juce::ColourGradient haze (VoidGUI::pink.withAlpha (0.20f), 60.0f, 130.0f,
+                               VoidGUI::purple.withAlpha (0.01f), 330.0f, base, false);
+    g.setGradientFill (haze); g.fillPath (fill);
     g.setColour (VoidGUI::pinkHot.withAlpha (0.9f));
-    g.strokePath (curve1, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    // Baseline
-    juce::ColourGradient baseline (VoidGUI::pink.withAlpha (0.55f), cx - halfSpan, baseY,
-                                   VoidGUI::pink.withAlpha (0.0f), cx + halfSpan, baseY, false);
-    g.setGradientFill (baseline);
-    g.drawLine (cx - halfSpan, baseY + 0.5f, cx + halfSpan, baseY + 0.5f, 1.1f);
-
-    // ---- Range captions
-    g.setFont (VoidGUI::font (400, 14.0f));
-    g.setColour (juce::Colour (0xffb9bfcf));
-    g.drawSingleLineText ("0.1 s", juce::roundToInt (14.0f), 213);
-    g.drawSingleLineText ("20 s", juce::roundToInt (arcLen - 14.0f - VoidGUI::textWidth (g.getCurrentFont(), "20 s")), 213);
+    g.strokePath (envelope, juce::PathStrokeType (1.1f));
+    g.setFont (VoidGUI::font (400, 13.0f));
+    g.setColour (VoidGUI::textDim);
+    g.drawText ("0.1 s", juce::Rectangle<float> (15.0f, 222.0f, 60.0f, 19.0f), juce::Justification::centredLeft);
+    g.drawText ("20 s", juce::Rectangle<float> (345.0f, 222.0f, 60.0f, 19.0f), juce::Justification::centredRight);
 }
 
 //==============================================================================
-// OrbButton (SPACE TYPE)
-//==============================================================================
+
 OrbButton::OrbButton()
 {
     setInterceptsMouseClicks (true, false);
@@ -297,54 +228,35 @@ void OrbButton::setSelected (bool shouldBeSelected)
 void OrbButton::paint (juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
-    const float orbSize = juce::jmin (b.getWidth(), b.getHeight() * 0.78f);
-    const auto orbRect = juce::Rectangle<float> (b.getCentreX() - orbSize * 0.5f, 2.0f, orbSize, orbSize);
-
-    // Selection plate (rounded square, neon pink)
-    if (selected)
+    const float size = juce::jmin (b.getWidth() - 4.0f, b.getHeight() - 38.0f);
+    const juce::Rectangle<float> r ((b.getWidth() - size) * 0.5f, 3.0f, size, size);
+    if (selected || hovered)
     {
-        const auto plate = b.withTrimmedBottom (b.getHeight() - orbSize - 8.0f).expanded (6.0f, 4.0f);
-        juce::Path platePath;
-        platePath.addRoundedRectangle (plate, 14.0f);
-        g.setColour (VoidGUI::pink.withAlpha (0.10f));
-        g.fillPath (platePath);
-        g.setColour (VoidGUI::pink.withAlpha (0.35f));
-        g.strokePath (platePath, juce::PathStrokeType (2.0f));
-        g.setColour (VoidGUI::pink);
-        g.strokePath (platePath, juce::PathStrokeType (1.6f));
+        g.setColour ((selected ? VoidGUI::pink : VoidGUI::cyan).withAlpha (selected ? 0.12f : 0.05f));
+        g.fillEllipse (r.expanded (2.0f));
     }
-    else if (hovered)
-    {
-        g.setColour (juce::Colours::white.withAlpha (0.045f));
-        g.fillRoundedRectangle (orbRect.expanded (4.0f), 10.0f);
-    }
-
-    // Orb image clipped to a circle
     if (orb.isValid())
     {
-        juce::Path clip;
-        clip.addEllipse (orbRect.reduced (1.0f));
-        g.saveState();
+        juce::Graphics::ScopedSaveState save (g);
+        juce::Path clip; clip.addEllipse (r);
         g.reduceClipRegion (clip);
-        g.drawImage (orb, orbRect, juce::RectanglePlacement::centred | juce::RectanglePlacement::fillDestination);
-        g.restoreState();
-
-        // Rim light + inner shadow
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.drawEllipse (orbRect, 2.4f);
-        g.setColour (juce::Colour (0xff6de8ff).withAlpha (0.28f));
-        g.drawEllipse (orbRect.reduced (1.6f), 1.0f);
+        g.drawImage (orb, r, juce::RectanglePlacement::stretchToFit);
     }
-
-    // Caption
-    VoidGUI::drawTrackedText (g, name.toUpperCase(),
-                              { b.getX(), b.getBottom() - 24.0f, b.getWidth(), 20.0f }, 2.6f,
-                              VoidGUI::font (500, 14.0f),
-                              selected ? VoidGUI::pink : VoidGUI::textDim);
+    g.setColour (selected ? VoidGUI::pinkHot : juce::Colour (0xff7293a7).withAlpha (0.65f));
+    g.drawEllipse (r, selected ? 1.4f : 0.85f);
+    g.setColour (juce::Colours::white.withAlpha (0.20f));
+    juce::Path rim;
+    rim.addCentredArc (r.getCentreX(), r.getCentreY(), size * 0.48f, size * 0.48f, 0.0f, -1.2f, 0.35f, true);
+    g.strokePath (rim, juce::PathStrokeType (1.0f));
+    if (selected)
+    {
+        g.setColour (VoidGUI::pinkHot);
+        g.fillEllipse (b.getCentreX() - 2.5f, r.getBottom() + 6.0f, 5.0f, 5.0f);
+    }
+    VoidGUI::drawTrackedText (g, name.toUpperCase(), {0.0f, b.getHeight() - 23.0f, b.getWidth(), 20.0f},
+                              1.8f, VoidGUI::font (400, 14.0f), selected ? VoidGUI::pinkHot : VoidGUI::textDim);
 }
 
-//==============================================================================
-// AdvancedCell
 //==============================================================================
 AdvancedCell::AdvancedCell (VoidChamberReverbAudioProcessor& processorToUse, const char* parameterID,
                             Icon iconToUse, juce::String labelToUse, bool isCharacterCell)
@@ -372,28 +284,19 @@ juce::String AdvancedCell::valueText() const
 void AdvancedCell::paint (juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
-    const float square = juce::jmin (b.getWidth(), b.getHeight() * 0.58f);
-    const auto iconBox = juce::Rectangle<float> (b.getCentreX() - square * 0.5f, 0.0f, square, square);
-
-    // Cell plate
-    juce::Path plate;
-    plate.addRoundedRectangle (iconBox, square * 0.12f);
-    g.setColour (juce::Colour (0xff0a0c10).withAlpha (hovered ? 0.95f : 0.82f));
-    g.fillPath (plate);
-    g.setColour (hovered ? VoidGUI::panelInner : VoidGUI::panelStroke);
-    g.strokePath (plate, juce::PathStrokeType (hovered ? 1.6f : 1.1f));
-
-    paintIcon (g, iconBox.reduced (square * 0.24f));
-
-    // Label + value
-    VoidGUI::drawTrackedText (g, label.toUpperCase(),
-                              { b.getX(), iconBox.getBottom() + 4.0f, b.getWidth(), 17.0f }, 2.2f,
-                              VoidGUI::font (500, 12.5f), VoidGUI::textDim);
-    g.setFont (VoidGUI::font (isCharacter ? 500 : 400, 17.0f));
-    g.setColour (isCharacter ? VoidGUI::pinkHot : VoidGUI::white);
-    g.drawText (valueText(),
-                juce::Rectangle<float> (b.getX(), iconBox.getBottom() + 20.0f, b.getWidth(), 22.0f),
-                juce::Justification::centred);
+    const auto colour = isCharacter ? VoidGUI::pinkHot : VoidGUI::cyanHot;
+    const float square = juce::jmin (b.getWidth() - 2.0f, b.getHeight() - 2.0f);
+    const juce::Rectangle<float> tile ((b.getWidth() - square) * 0.5f, 1.0f, square, b.getHeight() - 3.0f);
+    VoidGUI::drawPanel (g, tile, 10.0f, hovered ? 0.98f : 0.88f);
+    g.setColour (colour.withAlpha (hovered ? 0.42f : 0.16f));
+    g.drawRoundedRectangle (tile.reduced (1.6f), 9.0f, 0.85f);
+    const auto iconArea = juce::Rectangle<float> (tile.getX() + 19.0f, 17.0f, tile.getWidth() - 38.0f, 53.0f);
+    paintIcon (g, iconArea);
+    VoidGUI::drawTrackedText (g, label.toUpperCase(), {0.0f, 84.0f, b.getWidth(), 20.0f}, 0.8f,
+                              VoidGUI::font (400, 13.5f), VoidGUI::textDim);
+    g.setFont (VoidGUI::font (400, 22.0f));
+    g.setColour (colour);
+    g.drawText (valueText(), juce::Rectangle<float> (0.0f, 118.0f, b.getWidth(), 28.0f), juce::Justification::centred);
 }
 
 void AdvancedCell::paintIcon (juce::Graphics& g, juce::Rectangle<float> r)
@@ -439,21 +342,12 @@ void AdvancedCell::paintIcon (juce::Graphics& g, juce::Rectangle<float> r)
         }
         case Icon::air:
         {
-            juce::Path arc;
-            arc.addCentredArc (cx, cy, s * 0.34f, s * 0.34f, 0.0f,
-                               juce::MathConstants<float>::pi * 0.35f,
-                               juce::MathConstants<float>::pi * 1.72f, true);
-            g.strokePath (arc, juce::PathStrokeType (lw, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-            // Arrow head at arc end
-            const float endAngle = juce::MathConstants<float>::pi * 1.72f;
-            const auto tip = juce::Point<float> (cx + s * 0.34f * std::sin (endAngle), cy - s * 0.34f * std::cos (endAngle));
-            juce::Path head;
-            head.startNewSubPath (tip);
-            head.lineTo (tip.x - s * 0.17f, tip.y - s * 0.03f);
-            head.lineTo (tip.x - s * 0.02f, tip.y - s * 0.17f);
-            head.closeSubPath();
-            g.strokePath (head, juce::PathStrokeType (lw));
-            g.fillEllipse (cx - lw * 0.6f, cy - lw * 0.6f, lw * 1.2f, lw * 1.2f);
+            juce::Path shelf;
+            shelf.startNewSubPath (r.getX(), cy + s * 0.2f);
+            shelf.cubicTo (cx + s * 0.1f, cy + s * 0.2f, cx - s * 0.12f, cy - s * 0.22f,
+                           r.getRight(), cy - s * 0.22f);
+            g.setColour (VoidGUI::cyanHot);
+            g.strokePath (shelf, juce::PathStrokeType (lw));
             break;
         }
         case Icon::character:
@@ -600,7 +494,7 @@ void FrequencyDecayGraph::paint (juce::Graphics& g)
         { VoidGUI::cyan,   2.05f + damping * 6.4f + tilt * 1.35f - air * 1.6f },
     }};
 
-    const float left   = bounds.getX() + 10.0f;
+    const float left   = bounds.getX() + 31.0f;
     const float right  = bounds.getRight() - 10.0f;
     const float top    = bounds.getY() + 6.0f;
     const float bottom = bounds.getBottom() - 24.0f;
@@ -611,16 +505,25 @@ void FrequencyDecayGraph::paint (juce::Graphics& g)
         const float t = (std::log10 (freq) - std::log10 (20.0f)) / (std::log10 (20000.0f) - std::log10 (20.0f));
         return left + t * (right - left);
     };
-    // 0 dB at the top of the graph; 45 dB of headroom so the high band
-    // approaches but never clamps flat at the floor.
-    const float pxPerDb = height / 50.0f;
-    const auto lossToY = [&] (float db) { return top + juce::jlimit (0.0f, 50.0f, db) * pxPerDb; };
+    // Analytical absorption display, not a fabricated live spectrum.
+    // 60 dB headroom and readable labelled calibration.
+    const float pxPerDb = height / 60.0f;
+    const auto lossToY = [&] (float db) { return top + juce::jlimit (0.0f, 60.0f, db) * pxPerDb; };
 
     // Grid: verticals + one horizontal midline
     g.setColour (juce::Colours::white.withAlpha (0.055f));
     for (float f : { 20.0f, 100.0f, 1000.0f, 10000.0f, 20000.0f })
         g.drawLine (freqToX (f), top, freqToX (f), bottom, 1.0f);
-    g.drawLine (left, top + height * 0.5f, right, top + height * 0.5f, 1.0f);
+    g.setFont (VoidGUI::font (400, 11.0f));
+    for (int db = 0; db >= -60; db -= 12)
+    {
+        const float y = top - db * pxPerDb;
+        g.setColour (juce::Colours::white.withAlpha (0.055f));
+        g.drawLine (left, y, right, y, 0.7f);
+        g.setColour (VoidGUI::textFaint);
+        g.drawText (juce::String (db), juce::Rectangle<float> (0.0f, y - 7.0f, 25.0f, 14.0f),
+                    juce::Justification::centredRight);
+    }
 
     // X labels
     g.setFont (VoidGUI::font (400, 12.0f));
@@ -649,7 +552,7 @@ void FrequencyDecayGraph::paint (juce::Graphics& g)
             const float db = band.slope * octaves;
             const float x = freqToX (f);
             const float y = lossToY (db);
-            if (db > 50.0f)
+            if (db > 60.0f)
             {
                 // Terminate at the floor instead of drawing a clamped flat tail.
                 path.lineTo (x, bottom + 1.0f);
@@ -663,9 +566,9 @@ void FrequencyDecayGraph::paint (juce::Graphics& g)
         fill.lineTo (left, bottom);
         fill.closeSubPath();
 
-        g.setColour (band.colour.withAlpha (0.075f));
+        g.setColour (band.colour.withAlpha (0.025f));
         g.fillPath (fill);
-        g.setColour (band.colour.withAlpha (0.32f));
+        g.setColour (band.colour.withAlpha (0.12f));
         g.strokePath (path, juce::PathStrokeType (4.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour (band.colour);
         g.strokePath (path, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -1026,10 +929,10 @@ VoidChamberReverbAudioProcessorEditor::VoidChamberReverbAudioProcessorEditor (Vo
         slider.setPopupDisplayEnabled (false, false, this);
         addAndMakeVisible (slider);
     };
-    setupKnob (sizeSlider,       pinkFeel);
+    setupKnob (sizeSlider,       cyanFeel);
     setupKnob (preDelaySlider,   cyanFeel);
     setupKnob (dampingSlider,    cyanFeel);
-    setupKnob (modulationSlider, pinkFeel);
+    setupKnob (modulationSlider, cyanFeel);
     setupKnob (mixSlider,        pinkFeel);
 
     sizeAttachment       = std::make_unique<juce::SliderParameterAttachment> (*state.getParameter (VoidChamberReverbAudioProcessor::sizeID),       sizeSlider,       nullptr);
@@ -1113,25 +1016,6 @@ VoidChamberReverbAudioProcessorEditor::~VoidChamberReverbAudioProcessorEditor()
     setLookAndFeel (nullptr);
 }
 
-namespace
-{
-    void drawLogoBars (juce::Graphics& g, juce::Rectangle<float> area)
-    {
-        const float barW = 1.0f, gap = 5.0f;
-        const float heights[5] = { 7.0f, 16.0f, 28.0f, 16.0f, 7.0f };
-        const juce::Colour colours[5] = { VoidGUI::white, VoidGUI::white, VoidGUI::white, VoidGUI::white, VoidGUI::white };
-        float x = area.getX();
-        for (int i = 0; i < 5; ++i)
-        {
-            const float h = heights[i];
-            const auto bar = juce::Rectangle<float> (x, area.getCentreY() - h * 0.5f, barW, h);
-            g.setColour (colours[i].withAlpha (i == 1 || i == 3 ? 1.0f : 0.85f));
-            g.fillRect (bar);
-            x += barW + gap;
-        }
-    }
-}
-
 void VoidChamberReverbAudioProcessorEditor::updateCachedTexts()
 {
     auto& state = processor.getValueTreeState();
@@ -1171,144 +1055,89 @@ void VoidChamberReverbAudioProcessorEditor::updateCachedTexts()
 
 void VoidChamberReverbAudioProcessorEditor::paintPanels (juce::Graphics& g)
 {
-    {
-        juce::Graphics::ScopedSaveState save (g);
-        g.reduceClipRegion (550, 510, 436, 210);
-        g.setColour (juce::Colour (0xff080a0d).withAlpha (0.95f));
-        g.fillEllipse (550.0f, 510.0f, 436.0f, 436.0f);
-    }
-    VoidGUI::drawPanel (g, dr (42.0f, 548.0f, 474.0f, 194.0f), 17.0f, 0.70f);
-    VoidGUI::drawPanel (g, dr (1024.0f, 548.0f, 470.0f, 194.0f), 17.0f, 0.70f);
-    VoidGUI::drawPanel (g, dr (30.0f, 750.0f, 540.0f, 220.0f), 17.0f, 0.72f);
-    VoidGUI::drawPanel (g, dr (580.0f, 750.0f, 438.0f, 220.0f), 17.0f, 0.72f);
-    VoidGUI::drawPanel (g, dr (1028.0f, 750.0f, 466.0f, 220.0f), 17.0f, 0.72f);
+    VoidGUI::drawPanel (g, dr (39, 100, 170, 498), 15, 0.76f);
+    VoidGUI::drawPanel (g, dr (1325, 100, 172, 619), 15, 0.76f);
+    VoidGUI::drawPanel (g, dr (238, 523, 304, 196), 16, 0.9f);
+    VoidGUI::drawPanel (g, dr (983, 523, 315, 196), 16, 0.9f);
+    VoidGUI::drawPanel (g, dr (32, 742, 515, 222), 17, 0.91f);
+    VoidGUI::drawPanel (g, dr (557, 742, 411, 222), 17, 0.91f);
+    VoidGUI::drawPanel (g, dr (973, 742, 525, 222), 17, 0.91f);
 }
 
 void VoidChamberReverbAudioProcessorEditor::paintFrame (juce::Graphics& g)
 {
-    // Outer bezel: brushed-metal vertical gradient stroke
-    juce::ColourGradient bezel (juce::Colour (0xff7c8494), 0.0f, 0.0f,
-                                juce::Colour (0xff14161c), 0.0f, designH, false);
-    bezel.addColour (0.12, juce::Colour (0xff565e6c));
-    bezel.addColour (0.5, juce::Colour (0xff22252d));
-    bezel.addColour (0.9, juce::Colour (0xff191c23));
-    juce::Path outer;
-    outer.addRoundedRectangle (5.0f, 5.0f, designW - 10.0f, designH - 10.0f, 22.0f);
-    g.setGradientFill (bezel);
-    g.strokePath (outer, juce::PathStrokeType (3.4f));
-
-    // Inner hairline
-    juce::Path inner;
-    inner.addRoundedRectangle (11.5f, 11.5f, designW - 23.0f, designH - 23.0f, 17.0f);
-    g.setColour (juce::Colours::white.withAlpha (0.055f));
-    g.strokePath (inner, juce::PathStrokeType (1.0f));
-
-    // Top sheen fading to the sides
-    juce::ColourGradient sheen (juce::Colours::transparentWhite, 60.0f, 12.0f,
-                                juce::Colours::transparentWhite, designW - 60.0f, 12.0f, false);
-    sheen.addColour (0.5, juce::Colours::white.withAlpha (0.20f));
-    g.setGradientFill (sheen);
-    g.drawLine (60.0f, 12.0f, designW - 60.0f, 12.0f, 1.2f);
-
-
+    juce::ColourGradient metal (juce::Colour (0xff91acba), 0, 0,
+                                juce::Colour (0xff303743), designW, designH, false);
+    metal.addColour (0.15, juce::Colour (0xff25313c));
+    metal.addColour (0.5, juce::Colour (0xff657786));
+    metal.addColour (0.8, juce::Colour (0xff25313c));
+    g.setGradientFill (metal);
+    g.drawRoundedRectangle (5, 5, designW - 10, designH - 10, 24, 2.3f);
+    g.setColour (juce::Colour (0xff708493).withAlpha (0.55f));
+    g.drawRoundedRectangle (12, 12, designW - 24, designH - 24, 20, 1.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.11f));
+    g.drawLine (35, 15, designW - 35, 15, 1.0f);
 }
 
 void VoidChamberReverbAudioProcessorEditor::paintHeader (juce::Graphics& g)
 {
-    VoidGUI::drawPanel (g, dr (32.0f, 42.0f, 1472.0f, 66.0f), 16.0f, 0.86f);
-    // Left: logo + maker
-    drawLogoBars (g, dr (62.0f, 66.0f, 46.0f, 28.0f));
-    VoidGUI::drawTrackedText (g, "D.A Production", dr (124.0f, 62.0f, 300.0f, 34.0f), 2.6f,
-                              VoidGUI::font (500, 19.5f), juce::Colour (0xffd5d9e2),
-                              juce::Justification::centredLeft);
-
-    // Centre: tagline + wordmark + sub-wordmark
-    VoidGUI::drawTrackedText (g, "SPACE BEYOND SOUND", dr (designW * 0.5f - 260.0f, 64.0f, 520.0f, 16.0f), 5.2f,
-                              VoidGUI::font (400, 11.5f), VoidGUI::textFaint);
-
-    // VOID CHAMBER — wide, hairline, with a faint bloom underneath
-    VoidGUI::drawTrackedText (g, "VOID CHAMBER", dr (designW * 0.5f - 500.0f, 108.0f, 1000.0f, 62.0f), 17.0f,
-                              VoidGUI::font (300, 44.0f), juce::Colour (0xffe9ebf2));
-
-    VoidGUI::drawTrackedText (g, "REVERB", dr (designW * 0.5f - 200.0f, 168.0f, 400.0f, 20.0f), 16.0f,
-                              VoidGUI::font (400, 16.0f), VoidGUI::textDim);
-
-    // Right side: stacked caption
-    const juce::String caption[4] = { "INFINITE", "SPACES.", "REAL", "EMOTIONS" };
-    for (int i = 0; i < 4; ++i)
-        VoidGUI::drawTrackedText (g, caption[i], dr (1216.0f, 168.0f + static_cast<float> (i) * 34.0f, 150.0f, 20.0f), 4.4f,
-                                  VoidGUI::font (300, 15.0f), juce::Colour (0xffbcc1cd),
-                                  juce::Justification::centredRight);
+    VoidGUI::drawPanel (g, dr (24, 24, 1488, 49), 10, 0.95f);
+    // A fine wave emblem rather than the previous colored equalizer bars.
+    juce::Path wave;
+    for (int i = 0; i <= 80; ++i)
+    {
+        const float t = i / 80.0f;
+        const float x = 49 + t * 42;
+        const float y = 48 + std::sin (t * 19.0f) * std::sin (t * juce::MathConstants<float>::pi) * 11;
+        if (i == 0) wave.startNewSubPath (x, y); else wave.lineTo (x, y);
+    }
+    g.setColour (VoidGUI::white.withAlpha (0.86f));
+    g.strokePath (wave, juce::PathStrokeType (1.0f));
+    g.setFont (VoidGUI::font (400, 22));
+    g.drawText ("D.A Production", dr (100, 32, 240, 31), juce::Justification::centredLeft);
+    VoidGUI::drawTrackedText (g, "SPACE BEYOND SOUND", dr (510, 34, 530, 26), 2.3f,
+                              VoidGUI::font (400, 14), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "VOID CHAMBER", dr (420, 84, 696, 58), 2.0f,
+                              VoidGUI::titleFont (53), VoidGUI::white);
+    VoidGUI::drawTrackedText (g, "REVERB", dr (580, 143, 376, 26), 6.0f,
+                              VoidGUI::font (400, 22), VoidGUI::white);
 }
 
 void VoidChamberReverbAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (bgVoid);
-
     g.saveState();
     g.addTransform (juce::AffineTransform::scale (getWidth() / designW, getHeight() / designH));
-
-    // Backdrop scene
     if (background.isValid())
-        g.drawImage (background, 0.0f, 0.0f, designW, designH,
-                     0.0f, 0.0f, static_cast<float> (background.getWidth()), static_cast<float> (background.getHeight()));
+        g.drawImage (background, dr (0, 0, designW, designH));
+    paintPanels (g); paintFrame (g); paintHeader (g);
 
-    paintPanels (g);
-    paintFrame (g);
-    paintHeader (g);
-
-    // Panel titles
-    VoidGUI::drawTrackedText (g, "SIZE",      dr (30.0f, 561.0f, 260.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "PRE DELAY", dr (254.0f, 561.0f, 260.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "DAMPING",   dr (1022.0f, 561.0f, 260.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "MODULATION", dr (1238.0f, 561.0f, 268.0f, 22.0f), 2.0f, VoidGUI::font (400, 15.0f), VoidGUI::textDim);
-
-    // Knob value readouts
-    const auto valueFont = VoidGUI::font (400, 19.0f);
-    g.setFont (valueFont);
-    g.setColour (VoidGUI::white);
-    g.drawText (sizeText,       dr (30.0f, 718.0f, 260.0f, 24.0f),   juce::Justification::centred);
-    g.drawText (preDelayText,   dr (254.0f, 718.0f, 260.0f, 24.0f),  juce::Justification::centred);
-    g.drawText (dampingText,    dr (1022.0f, 718.0f, 260.0f, 24.0f),  juce::Justification::centred);
-    g.drawText (modulationText, dr (1238.0f, 718.0f, 268.0f, 24.0f), juce::Justification::centred);
-
-    // Meter labels + mix readout
-    VoidGUI::drawTrackedText (g, "INPUT",  dr (46.0f, 148.0f, 100.0f, 20.0f), 5.0f, VoidGUI::font (400, 14.0f), VoidGUI::textDim);
-    VoidGUI::drawTrackedText (g, "OUTPUT", dr (1390.0f, 148.0f, 100.0f, 20.0f), 5.0f, VoidGUI::font (400, 14.0f), VoidGUI::textDim);
-    g.setFont (valueFont);
-    g.setColour (VoidGUI::white);
-    g.drawText (mixText, dr (1386.0f, 532.0f, 96.0f, 22.0f), juce::Justification::centred);
-
-    // Bottom panel titles
-    VoidGUI::drawTrackedText (g, "SPACE TYPE",     dr (56.0f, 766.0f, 260.0f, 18.0f), 1.8f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
-    VoidGUI::drawTrackedText (g, "FREQUENCY DECAY", dr (600.0f, 766.0f, 280.0f, 18.0f), 1.8f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
-    VoidGUI::drawTrackedText (g, "ADVANCED",       dr (1042.0f, 766.0f, 220.0f, 18.0f), 1.8f, VoidGUI::font (400, 14.0f), VoidGUI::textDim, juce::Justification::centredLeft);
-
-    // FREQUENCY DECAY legend — right-justified against the panel edge and
-    // pushed clear of the title by measuring both.
-    const auto legendFont = VoidGUI::font (400, 12.5f);
-    const char* legendLabels[3] = { "LOW", "MID", "HIGH" };
-    const juce::Colour legendColours[3] = { VoidGUI::pink, VoidGUI::purple, VoidGUI::cyan };
-    const float dot = 9.5f, dotGap = 6.0f, itemGap = 20.0f;
-    float legendWidth = itemGap * 2.0f;
-    float labelWidths[3];
-    for (int i = 0; i < 3; ++i)
+    const char* names[] = { "SIZE", "PRE DELAY", "DAMPING", "MODULATION" };
+    const float centers[] = {316, 467, 1061, 1216};
+    const juce::String texts[] = {sizeText, preDelayText, dampingText, modulationText};
+    for (int i = 0; i < 4; ++i)
     {
-        labelWidths[i] = VoidGUI::textWidth (legendFont, legendLabels[i]);
-        legendWidth += dot + dotGap + labelWidths[i];
+        VoidGUI::drawTrackedText (g, names[i], dr (centers[i] - 74, 540, 148, 25), 1.1f,
+                                  VoidGUI::font (400, 16), VoidGUI::textDim);
+        g.setFont (VoidGUI::font (400, 21));
+        g.setColour (VoidGUI::cyanHot);
+        g.drawText (texts[i], dr (centers[i] - 70, 682, 140, 28), juce::Justification::centred);
     }
-    const float panelRight = 1000.0f;
-    float legendX = panelRight - legendWidth;
-    for (int i = 0; i < 3; ++i)
-    {
-        g.setColour (legendColours[i]);
-        g.fillEllipse (legendX, 794.0f, dot, dot);
-        g.setColour (VoidGUI::textDim);
-        g.setFont (legendFont);
-        g.drawSingleLineText (legendLabels[i], juce::roundToInt (legendX + dot + dotGap), 804);
-        legendX += dot + dotGap + labelWidths[i] + itemGap;
-    }
-
+    VoidGUI::drawTrackedText (g, "INPUT", dr (49, 109, 150, 25), 1.8f,
+                              VoidGUI::font (400, 17), VoidGUI::cyanHot);
+    VoidGUI::drawTrackedText (g, "OUTPUT", dr (1336, 109, 150, 25), 1.8f,
+                              VoidGUI::font (400, 17), VoidGUI::pinkHot);
+    VoidGUI::drawTrackedText (g, "MIX", dr (1351, 555, 120, 24), 1.6f,
+                              VoidGUI::font (400, 16), VoidGUI::textDim);
+    g.setFont (VoidGUI::font (400, 20));
+    g.setColour (VoidGUI::pinkHot);
+    g.drawText (mixText, dr (1351, 682, 120, 28), juce::Justification::centred);
+    VoidGUI::drawTrackedText (g, "SPACE TYPE", dr (62, 752, 455, 30), 3.0f,
+                              VoidGUI::font (400, 16), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "FREQUENCY DECAY", dr (577, 752, 371, 30), 1.8f,
+                              VoidGUI::font (400, 16), VoidGUI::textDim);
+    VoidGUI::drawTrackedText (g, "ADVANCED", dr (995, 752, 481, 30), 2.4f,
+                              VoidGUI::font (400, 16), VoidGUI::textDim);
     g.restoreState();
 }
 
@@ -1335,42 +1164,30 @@ void VoidChamberReverbAudioProcessorEditor::layoutContents (float scale, float o
         comp.setTransform (juce::AffineTransform::scale (scale, scaleY));
     };
 
-    // Header preset navigation
-    place (presetPrev,      1144.0f, 62.0f, 42.0f, 36.0f);
-    place (presetNameButton, 1186.0f, 62.0f, 198.0f, 36.0f);
-    place (presetNext,      1384.0f, 62.0f, 42.0f, 36.0f);
-    place (menuButton,      1440.0f, 58.0f, 40.0f, 40.0f);
+    place (presetNameButton, 1177, 29, 164, 38);
+    place (presetPrev, 1344, 31, 35, 34);
+    place (presetNext, 1384, 31, 35, 34);
+    place (menuButton, 1444, 31, 43, 34);
 
-    // Left / right meter columns
-    place (inputMeter,  54.0f, 176.0f, 100.0f, 240.0f);
-    place (monoButton,  57.0f, 435.0f, 94.0f, 32.0f);
-    place (stereoButton, 57.0f, 469.0f, 94.0f, 32.0f);
-    place (outputMeter, 1380.0f, 176.0f, 100.0f, 240.0f);
-    place (mixSlider,   1382.0f, 448.0f, 104.0f, 104.0f);
+    place (inputMeter, 54, 142, 140, 405);
+    place (outputMeter, 1341, 142, 140, 405);
+    place (monoButton, 57, 553, 63, 31);
+    place (stereoButton, 123, 553, 76, 31);
+    place (mixSlider, 1346, 575, 130, 112);
 
-    // Knob row
-    place (sizeSlider,       78.0f, 579.0f, 164.0f, 164.0f);
-    place (preDelaySlider,   302.0f, 579.0f, 164.0f, 164.0f);
-    place (dampingSlider,   1070.0f, 579.0f, 164.0f, 164.0f);
-    place (modulationSlider, 1290.0f, 579.0f, 164.0f, 164.0f);
-
-    // Decay arc (sits above the bottom panels, in front of the scene)
-    place (decaySlider, 550.0f, 510.0f, 436.0f, 210.0f);
-
-    // SPACE TYPE orbs
-    const float orbCenters[5] = { 104.0f, 212.0f, 314.0f, 414.0f, 514.0f };
+    place (sizeSlider, 251, 567, 130, 116);
+    place (preDelaySlider, 402, 567, 130, 116);
+    place (dampingSlider, 996, 567, 130, 116);
+    place (modulationSlider, 1151, 567, 130, 116);
+    place (decaySlider, 558, 476, 420, 248);
+    const float centers[] = {91, 190, 289, 388, 487};
     for (int i = 0; i < 5; ++i)
-        place (orbs[i], orbCenters[i] - 43.0f, 796.0f, 86.0f, 124.0f);
-
-    // FREQUENCY DECAY graph
-    place (freqGraph, 590.0f, 807.0f, 414.0f, 132.0f);
-
-    // ADVANCED cells
-    const float cellX[4] = { 1042.0f, 1150.0f, 1258.0f, 1366.0f };
-    place (diffusionCell, cellX[0], 792.0f, 92.0f, 148.0f);
-    place (widthCell,     cellX[1], 792.0f, 92.0f, 148.0f);
-    place (airCell,       cellX[2], 792.0f, 92.0f, 148.0f);
-    place (characterCell, cellX[3], 792.0f, 92.0f, 148.0f);
+        place (orbs[i], centers[i] - 49, 791, 98, 145);
+    place (freqGraph, 577, 790, 371, 158);
+    place (diffusionCell, 991, 791, 115, 155);
+    place (widthCell, 1114, 791, 115, 155);
+    place (airCell, 1237, 791, 115, 155);
+    place (characterCell, 1360, 791, 115, 155);
 }
 
 void VoidChamberReverbAudioProcessorEditor::timerCallback()
