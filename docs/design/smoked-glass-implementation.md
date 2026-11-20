@@ -17,7 +17,8 @@ intermediate component-by-component art-direction choices.
   regenerates these assets with Pillow; Pillow is not needed for plugin builds.
 - Titanium knob artwork/automation remains intact. Four main knobs use cyan
   accents; Mix uses pink. All existing parameter IDs and DSP are unchanged.
-- Meter ticks, fill and peak share a calibrated -60..0 dB mapping; numeric labels
+- Meter input is the unboosted block sample peak (old cosmetic 3x RMS boost removed).
+  Ticks, fill and peak share a calibrated -60..0 dB mapping; numeric labels
   and clip indications remain live. Decay uses the actual attached RT60 value;
   its stylised envelope is illustrative, not a claimed measured analyser.
 - Frequency Decay stays parameter-dependent analytical absorption, not a static
@@ -25,7 +26,8 @@ intermediate component-by-component art-direction choices.
 
 ## Verification and delivery
 Snapshot tests cover both knob accents at min/mid/max, meter calibration,
-Space Type and Mono/Stereo actions, preset overlay opening/closing, and rendering
+opaque selected Space Type artwork, Space Type and Mono/Stereo actions,
+preset overlay opening/closing, and rendering
 at 1536×1024, 960×640, 1200×900 and 1800×900 (including forced off-ratio host sizes).
 Commit marker `[visual-review]` opts into a reduced actual CI-render thumbnail
 transport for restricted environments. Marker `[ui-preview]` publishes tested

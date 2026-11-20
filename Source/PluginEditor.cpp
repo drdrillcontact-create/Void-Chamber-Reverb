@@ -240,6 +240,8 @@ void OrbButton::paint (juce::Graphics& g)
         juce::Graphics::ScopedSaveState save (g);
         juce::Path clip; clip.addEllipse (r);
         g.reduceClipRegion (clip);
+        // The selection halo must not leak its low alpha into the icon art.
+        g.setOpacity (1.0f);
         g.drawImage (orb, r, juce::RectanglePlacement::stretchToFit);
     }
     g.setColour (selected ? VoidGUI::pinkHot : juce::Colour (0xff7293a7).withAlpha (0.65f));

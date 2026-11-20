@@ -78,6 +78,24 @@ int main(int argc, char* argv[])
                       - (db + 60.0f) / 60.0f) > 0.0001f) return failed (8, __LINE__);
     if (VoidGUI::meterPosition (0.0f) != 0.0f || VoidGUI::meterPosition (2.0f) != 1.0f) return failed (8, __LINE__);
 
+    // Selected glass medallions keep their artwork opaque; only the outer halo
+    // is translucent. Check the body centre away from the rim/status dot.
+    {
+        juce::Image icon (juce::Image::RGB, 64, 64, true);
+        icon.clear (icon.getBounds(), juce::Colour (0xff2468ac));
+        OrbButton orb;
+        orb.setOrb (icon, "Hall"); orb.setSize (98, 145);
+        juce::Image states[2];
+        for (int selected = 0; selected < 2; ++selected)
+        {
+            orb.setSelected (selected != 0);
+            states[selected] = juce::Image (juce::Image::ARGB, 98, 145, true);
+            { juce::Graphics g (states[selected]); orb.paint (g); }
+        }
+        if (states[0].getPixelAt (49, 50) != states[1].getPixelAt (49, 50))
+            return failed (12, __LINE__);
+    }
+
     VoidChamberReverbAudioProcessor processor;
 
     processor.loadPreset (10); // Real Astral Hall settings, not a mock preset label.
